@@ -9,6 +9,7 @@ const assetsByProjectPath = new Map(
 )
 
 export function resolveAssetSource(source: string): string {
+  if (source.startsWith('data:image/')) return source
   const normalized = source.replace(/^\.\//, '').replaceAll('\\', '/')
   return assetsByProjectPath.get(normalized) ?? source
 }

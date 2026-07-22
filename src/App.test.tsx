@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import App from './App'
 import { testConfig } from './test-fixture'
 
+const inlinePng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X8xOAAAAAElFTkSuQmCC'
+
 describe('VisiFlow', () => {
   it('switches between map and catalog and focuses a component', () => {
     render(<App result={{ ok: true, data: testConfig }} />)
@@ -43,13 +45,15 @@ describe('VisiFlow', () => {
   it('renders scrollable screens and image layers on any component kind', () => {
     const config = structuredClone(testConfig)
     config.screens[0].contentHeight = 1200
-    config.components[0].visual.src = 'data:image/png;base64,AA=='
+    config.screens[0].backgroundImage = inlinePng
+    config.components[0].visual.src = inlinePng
     config.components[0].visual.imageFit = 'contain'
     const { container } = render(<App result={{ ok: true, data: config }} />)
     expect(container.querySelector('.app-screen')).toHaveClass('scrollable')
     const image = container.querySelector('.visual-art')
-    expect(image).toHaveAttribute('src', 'data:image/png;base64,AA==')
+    expect(image).toHaveAttribute('src', inlinePng)
     expect(image).toHaveStyle({ objectFit: 'contain' })
+    expect(container.querySelector('.screen-canvas')).toHaveStyle({ backgroundImage: `url(${inlinePng})` })
     expect(container.querySelector('[aria-label="Reset zoom to fit"]')).toHaveTextContent('100%')
   })
 })

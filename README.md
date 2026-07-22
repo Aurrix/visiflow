@@ -57,6 +57,8 @@ At 100% zoom, the device is automatically fitted to the available map workspace.
 
 ### Screenshots and component images
 
+Images can be embedded directly in the JSON as standard `data:image/<format>;base64,...` URLs. They remain entirely inline when using the live configuration editor or the generated single-file build.
+
 Use a screen image as the app canvas while retaining interactive component hotspots:
 
 ```json

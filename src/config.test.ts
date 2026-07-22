@@ -4,6 +4,8 @@ import { resolve } from 'node:path'
 import { parseConfig } from './config'
 import { testConfig } from './test-fixture'
 
+const inlinePng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X8xOAAAAAElFTkSuQmCC'
+
 describe('parseConfig', () => {
   it('keeps the documented project template valid', () => {
     const example = JSON.parse(readFileSync(resolve('docs/visiflow-config.example.json'), 'utf8'))
@@ -19,6 +21,18 @@ describe('parseConfig', () => {
 
   it('accepts a complete, cross-referenced configuration', () => {
     expect(parseConfig(testConfig).ok).toBe(true)
+  })
+
+  it('preserves base64 images embedded inline in JSON', () => {
+    const input = structuredClone(testConfig)
+    input.screens[0].backgroundImage = inlinePng
+    input.components[0].visual.src = inlinePng
+    const result = parseConfig(JSON.parse(JSON.stringify(input)))
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.screens[0].backgroundImage).toBe(inlinePng)
+      expect(result.data.components[0].visual.src).toBe(inlinePng)
+    }
   })
 
   it('reports unknown connection endpoints with a property path', () => {
