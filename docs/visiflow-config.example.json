@@ -1,0 +1,417 @@
+{
+  "schemaVersion": 1,
+  "app": {
+    "id": "example-mobile-app",
+    "name": "Example Mobile App",
+    "platform": "iOS and Android",
+    "description": "Replace this example with a description of your application.",
+    "device": "ios",
+    "initialScreenId": "home",
+    "accent": "#7c8cff"
+  },
+  "screens": [
+    {
+      "id": "home",
+      "name": "Home",
+      "width": 390,
+      "height": 844,
+      "background": "linear-gradient(180deg, #171c2a 0%, #0e1119 100%)"
+    },
+    {
+      "id": "details",
+      "name": "Details",
+      "width": 390,
+      "height": 844,
+      "contentHeight": 1100,
+      "background": "#11151f"
+    },
+    {
+      "id": "image-components",
+      "name": "Image components",
+      "width": 390,
+      "height": 844,
+      "background": "#f5f5f5",
+      "showSystemUi": false
+    }
+  ],
+  "components": [
+    {
+      "id": "profile-header",
+      "screenId": "home",
+      "name": "Profile header",
+      "type": "Text",
+      "description": "Displays the signed-in user and refreshes their profile when the application resumes.",
+      "tags": ["profile", "authentication", "lifecycle"],
+      "defaultState": "active",
+      "visual": {
+        "kind": "text",
+        "x": 24,
+        "y": 60,
+        "width": 342,
+        "height": 48,
+        "text": "Welcome back, User",
+        "color": "#f4f6fb"
+      }
+    },
+    {
+      "id": "summary-card",
+      "screenId": "home",
+      "name": "Account summary",
+      "type": "Summary",
+      "description": "Shows remote account data and its last synchronization state.",
+      "tags": ["account", "polling", "remote-data"],
+      "defaultState": "active",
+      "visual": {
+        "kind": "container",
+        "x": 20,
+        "y": 125,
+        "width": 350,
+        "height": 150,
+        "text": "ACCOUNT SUMMARY\n\nCurrent value: 1,250",
+        "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='350' height='150'%3E%3Crect width='350' height='150' fill='%235868e8'/%3E%3Ccircle cx='315' cy='20' r='95' fill='%23ffffff' opacity='.12'/%3E%3C/svg%3E",
+        "imageFit": "cover",
+        "imagePosition": "center",
+        "imageOpacity": 0.8,
+        "background": "linear-gradient(135deg, #5868e8, #8b64da)",
+        "color": "#ffffff",
+        "borderRadius": 22,
+        "states": {
+          "inactive": {
+            "text": "ACCOUNT SUMMARY\n\nData unavailable",
+            "background": "#343949",
+            "opacity": 0.65
+          }
+        }
+      }
+    },
+    {
+      "id": "primary-action",
+      "screenId": "home",
+      "name": "Primary action",
+      "type": "Action",
+      "description": "Submits a user-initiated command to the application API.",
+      "tags": ["mutation", "user-action"],
+      "defaultState": "active",
+      "visual": {
+        "kind": "button",
+        "x": 20,
+        "y": 300,
+        "width": 350,
+        "height": 54,
+        "text": "Run primary action",
+        "background": "#6878ef",
+        "color": "#ffffff",
+        "borderRadius": 15,
+        "states": {
+          "inactive": {
+            "text": "Action unavailable",
+            "background": "#333847",
+            "opacity": 0.55
+          }
+        }
+      }
+    },
+    {
+      "id": "activity-feed",
+      "screenId": "home",
+      "name": "Activity feed",
+      "type": "Feed",
+      "description": "Displays recent activity received through polling and push updates.",
+      "tags": ["feed", "polling", "push"],
+      "visual": {
+        "kind": "container",
+        "x": 20,
+        "y": 385,
+        "width": 350,
+        "height": 320,
+        "text": "RECENT ACTIVITY\n\nItem one\nItem two\nItem three",
+        "background": "#171b25",
+        "color": "#dce1ed",
+        "borderColor": "#292f3e",
+        "borderRadius": 20,
+        "states": {
+          "inactive": {
+            "text": "RECENT ACTIVITY\n\nShowing cached results",
+            "opacity": 0.6
+          }
+        }
+      }
+    },
+    {
+      "id": "details-hotspot",
+      "screenId": "details",
+      "name": "Screenshot hotspot",
+      "type": "Hotspot",
+      "description": "An invisible interactive region positioned over a component in a screen image.",
+      "tags": ["hotspot", "screenshot"],
+      "visual": {
+        "kind": "hotspot",
+        "x": 32,
+        "y": 180,
+        "width": 326,
+        "height": 120,
+        "borderRadius": 16
+      }
+    },
+    {
+      "id": "export-button",
+      "screenId": "details",
+      "name": "Export report",
+      "type": "Action",
+      "description": "Starts asynchronous report generation.",
+      "tags": ["export", "scheduled"],
+      "visual": {
+        "kind": "button",
+        "x": 20,
+        "y": 950,
+        "width": 350,
+        "height": 52,
+        "text": "Export report",
+        "background": "#6878ef",
+        "color": "#ffffff",
+        "borderRadius": 15
+      }
+    },
+    {
+      "id": "login-card-image",
+      "screenId": "image-components",
+      "name": "Login card",
+      "type": "Image",
+      "description": "A complete login component rendered from the local login_card.png asset.",
+      "tags": ["image", "login", "local-asset"],
+      "visual": {
+        "kind": "image",
+        "x": 0,
+        "y": 24,
+        "width": 301,
+        "height": 517,
+        "layout": { "horizontal": "center" },
+        "src": "docs/assets/login_card.png",
+        "imageFit": "contain",
+        "background": "#f5f5f5",
+        "borderRadius": 8
+      }
+    },
+    {
+      "id": "coupons-card-image",
+      "screenId": "image-components",
+      "name": "Coupons card",
+      "type": "Image",
+      "description": "A coupon summary component rendered from the local coupons.png asset.",
+      "tags": ["image", "coupon", "local-asset"],
+      "visual": {
+        "kind": "image",
+        "x": 0,
+        "y": 590,
+        "width": 384,
+        "height": 187,
+        "layout": { "horizontal": "center" },
+        "src": "docs/assets/coupons.png",
+        "imageFit": "contain",
+        "background": "#f5f5f5",
+        "borderRadius": 8
+      }
+    }
+  ],
+  "systems": [
+    {
+      "id": "identity-service",
+      "name": "Identity Service",
+      "type": "Authentication",
+      "description": "Issues access tokens and provides user profile information.",
+      "color": "#b47cff",
+      "icon": "◆",
+      "placement": "left"
+    },
+    {
+      "id": "application-api",
+      "name": "Application API",
+      "type": "Backend",
+      "description": "Provides application data and processes user commands.",
+      "color": "#5f8cff",
+      "icon": "↗",
+      "placement": "right"
+    },
+    {
+      "id": "event-stream",
+      "name": "Event Stream",
+      "type": "Events",
+      "description": "Publishes real-time application updates.",
+      "color": "#55d99d",
+      "icon": "≈",
+      "placement": "right"
+    },
+    {
+      "id": "analytics-service",
+      "name": "Analytics Service",
+      "type": "Telemetry",
+      "description": "Receives privacy-filtered application events.",
+      "color": "#f5a85c",
+      "icon": "⌁",
+      "placement": "left"
+    },
+    {
+      "id": "loyalty-platform",
+      "name": "Loyalty Platform",
+      "type": "Rewards service",
+      "description": "Returns available coupons, redemption state, and loyalty point balances.",
+      "color": "#4f8bd8",
+      "icon": "%",
+      "placement": "right"
+    },
+    {
+      "id": "offers-cms",
+      "name": "Offers CMS",
+      "type": "Content service",
+      "description": "Publishes localized coupon artwork and campaign copy.",
+      "color": "#79b55b",
+      "icon": "▧",
+      "placement": "right"
+    }
+  ],
+  "connections": [
+    {
+      "id": "refresh-profile",
+      "name": "Refresh profile",
+      "source": { "kind": "component", "id": "profile-header" },
+      "target": { "kind": "system", "id": "identity-service" },
+      "protocol": "HTTPS",
+      "method": "GET",
+      "endpoint": "/v1/profile",
+      "description": "Refreshes the current user's display data and session claims.",
+      "cadence": { "kind": "lifecycle", "label": "On application resume" }
+    },
+    {
+      "id": "load-summary",
+      "name": "Load account summary",
+      "source": { "kind": "component", "id": "summary-card" },
+      "target": { "kind": "system", "id": "application-api" },
+      "protocol": "GraphQL",
+      "method": "QUERY",
+      "endpoint": "AccountSummary",
+      "description": "Loads the latest summary data while the screen is visible.",
+      "cadence": { "kind": "polling", "label": "Every 60 seconds", "intervalMs": 60000 }
+    },
+    {
+      "id": "submit-primary-action",
+      "name": "Submit primary action",
+      "source": { "kind": "component", "id": "primary-action" },
+      "target": { "kind": "system", "id": "application-api" },
+      "protocol": "HTTPS",
+      "method": "POST",
+      "endpoint": "/v1/actions",
+      "description": "Submits the command after explicit user confirmation.",
+      "cadence": { "kind": "user-event", "label": "On confirmation" }
+    },
+    {
+      "id": "refresh-activity",
+      "name": "Refresh activity",
+      "source": { "kind": "component", "id": "activity-feed" },
+      "target": { "kind": "system", "id": "application-api" },
+      "protocol": "HTTPS",
+      "method": "GET",
+      "endpoint": "/v1/activity",
+      "description": "Pulls recent activity while the application is foregrounded.",
+      "cadence": { "kind": "polling", "label": "Every 30 seconds", "intervalMs": 30000 }
+    },
+    {
+      "id": "activity-events",
+      "name": "Activity updates",
+      "source": { "kind": "system", "id": "event-stream" },
+      "target": { "kind": "component", "id": "activity-feed" },
+      "protocol": "WebSocket",
+      "endpoint": "wss://example.test/events",
+      "description": "Pushes newly created activity into the visible feed.",
+      "cadence": { "kind": "push", "label": "Event driven" }
+    },
+    {
+      "id": "create-export",
+      "name": "Generate report",
+      "source": { "kind": "component", "id": "export-button" },
+      "target": { "kind": "system", "id": "application-api" },
+      "protocol": "HTTPS",
+      "method": "POST",
+      "endpoint": "/v1/reports",
+      "description": "Schedules an asynchronous report-generation job.",
+      "cadence": { "kind": "scheduled", "label": "One asynchronous job" }
+    },
+    {
+      "id": "analytics-batch",
+      "name": "Send analytics batch",
+      "source": { "kind": "system", "id": "application-api" },
+      "target": { "kind": "system", "id": "analytics-service" },
+      "protocol": "Kafka",
+      "endpoint": "application.events.v1",
+      "description": "Forwards aggregate, privacy-filtered usage events.",
+      "cadence": { "kind": "recurring", "label": "Every 5 minutes", "intervalMs": 300000 }
+    },
+    {
+      "id": "login-authenticate",
+      "name": "Authenticate customer",
+      "source": { "kind": "component", "id": "login-card-image" },
+      "target": { "kind": "system", "id": "identity-service" },
+      "protocol": "OIDC",
+      "method": "POST",
+      "endpoint": "/oauth/token",
+      "description": "Exchanges phone/password or biometric proof for an application session.",
+      "cadence": { "kind": "user-event", "label": "On login submission" }
+    },
+    {
+      "id": "coupon-availability",
+      "name": "Load available coupons",
+      "source": { "kind": "component", "id": "coupons-card-image" },
+      "target": { "kind": "system", "id": "loyalty-platform" },
+      "protocol": "GraphQL",
+      "method": "QUERY",
+      "endpoint": "AvailableCoupons",
+      "description": "Loads coupon availability and the current loyalty balance.",
+      "cadence": { "kind": "lifecycle", "label": "On component visibility" }
+    },
+    {
+      "id": "coupon-content",
+      "name": "Publish coupon content",
+      "source": { "kind": "system", "id": "offers-cms" },
+      "target": { "kind": "component", "id": "coupons-card-image" },
+      "protocol": "HTTPS",
+      "method": "GET",
+      "endpoint": "/v1/campaigns/active",
+      "description": "Supplies localized artwork and campaign text for the coupon card.",
+      "cadence": { "kind": "scheduled", "label": "Campaign refresh every 6 hours", "intervalMs": 21600000 }
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "normal",
+      "name": "Normal operation",
+      "description": "All application capabilities are available.",
+      "screenId": "home",
+      "componentStates": {}
+    },
+    {
+      "id": "offline",
+      "name": "Offline mode",
+      "description": "Remote-data components display cached or unavailable states.",
+      "screenId": "home",
+      "componentStates": {
+        "summary-card": "inactive",
+        "primary-action": "inactive",
+        "activity-feed": "inactive"
+      }
+    },
+    {
+      "id": "reporting",
+      "name": "Reporting flow",
+      "description": "Opens the details screen with report export available.",
+      "screenId": "details",
+      "componentStates": {}
+    },
+    {
+      "id": "asset-preview",
+      "name": "Local image assets",
+      "description": "Displays the two image components bundled from docs/assets.",
+      "screenId": "image-components",
+      "componentStates": {}
+    }
+  ],
+  "initialScenarioId": "normal"
+}
