@@ -56,4 +56,14 @@ describe('VisiFlow', () => {
     expect(container.querySelector('.screen-canvas')).toHaveStyle({ backgroundImage: `url(${inlinePng})` })
     expect(container.querySelector('[aria-label="Reset zoom to fit"]')).toHaveTextContent('100%')
   })
+
+  it('shows component image and schema previews in the catalog cards', () => {
+    const config = structuredClone(testConfig)
+    config.components[0].visual.src = inlinePng
+    const { container } = render(<App result={{ ok: true, data: config }} />)
+    fireEvent.click(screen.getByRole('button', { name: /components/i }))
+    expect(screen.getByRole('img', { name: 'Pay button visual preview' })).toBeInTheDocument()
+    expect(container.querySelector('.component-preview-image')).toHaveAttribute('src', inlinePng)
+    expect(container.querySelector('.component-preview-label')).toHaveTextContent('Pay')
+  })
 })

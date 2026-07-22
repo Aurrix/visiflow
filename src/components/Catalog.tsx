@@ -1,6 +1,7 @@
 import type { Selection } from '../model'
 import { componentState, connectionsFor, endpointName, sameRef } from '../model'
 import type { Scenario, VisiFlowConfig } from '../types'
+import { ComponentPreview } from './ComponentPreview'
 
 interface CatalogProps {
   config: VisiFlowConfig
@@ -61,6 +62,7 @@ export function Catalog(props: CatalogProps) {
                   <div className="component-glyph">{component.type.slice(0, 1).toUpperCase()}</div>
                   <span className={`state-pill ${currentState}`}><i />{currentState}</span>
                 </div>
+                <ComponentPreview component={component} scenario={scenario} />
                 <p className="card-kicker">{screen?.name} · {component.type}</p>
                 <h3>{component.name}</h3>
                 <p className="card-description">{component.description}</p>
