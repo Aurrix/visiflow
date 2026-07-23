@@ -66,3 +66,14 @@ select { appearance: none; border: 1px solid var(--line); border-radius: 8px; co
 @media (max-width: 560px) {
   .view-tabs button { padding-inline: 10px; }.view-tabs button > span { display: none; }.config-modal-backdrop { padding: 10px; }.config-modal { max-height: calc(100vh - 20px); padding: 16px; }.config-modal textarea { min-height: 280px; }.config-modal > footer { align-items: stretch; flex-direction: column; }.config-modal > footer > div, .config-modal > footer button { flex: 1; }
 }
+
+.main-layout.view-systems { align-items: start; }
+.app-screen::-webkit-scrollbar-track { margin-block: 28px; }
+.system-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(235px, 1fr)); gap: 13px; }
+.system-card { min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: linear-gradient(145deg, #141823, #10131b); cursor: pointer; transition: border-color .2s, transform .2s; }
+.system-card:hover, .system-card.selected { border-color: var(--system-color); transform: translateY(-2px); }
+.system-card.selected { box-shadow: 0 0 0 1px var(--system-color); }
+.system-card-top { display: flex; align-items: center; justify-content: space-between; }
+.system-catalog-icon { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid color-mix(in srgb, var(--system-color) 35%, #252b3a); border-radius: 9px; color: var(--system-color); background: color-mix(in srgb, var(--system-color) 12%, #11151e); font-weight: 800; }
+.system-type { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.system-card h3 { margin: 13px 0 0; font-size: 15px; }

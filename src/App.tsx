@@ -3,6 +3,7 @@ import './App.css'
 import { AppMap } from './components/AppMap'
 import { Catalog } from './components/Catalog'
 import { DetailPanel } from './components/DetailPanel'
+import { SystemsCatalog } from './components/SystemsCatalog'
 import { parseConfig, type ConfigResult } from './config'
 import { cadenceLabels, type Selection } from './model'
 import type { VisiFlowConfig } from './types'
@@ -71,11 +72,12 @@ function GearIcon() {
 
 function VisiFlow({ config, onConfig }: { config: VisiFlowConfig; onConfig: (config: VisiFlowConfig) => void }) {
   const initialScenario = config.scenarios.find((item) => item.id === config.initialScenarioId) ?? config.scenarios[0]
-  const [view, setView] = useState<'map' | 'catalog'>('map')
+  const [view, setView] = useState<'map' | 'catalog' | 'systems'>('map')
   const [scenarioId, setScenarioId] = useState(initialScenario.id)
   const [screenId, setScreenId] = useState(initialScenario.screenId ?? config.app.initialScreenId)
   const [selection, setSelection] = useState<Selection>(null)
   const [search, setSearch] = useState('')
+  const [systemsSearch, setSystemsSearch] = useState('')
   const [catalogScreen, setCatalogScreen] = useState('all')
   const [stateFilter, setStateFilter] = useState('all')
   const [protocol, setProtocol] = useState('all')
@@ -106,6 +108,7 @@ function VisiFlow({ config, onConfig }: { config: VisiFlowConfig; onConfig: (con
         <nav className="view-tabs" aria-label="Views">
           <button className={view === 'map' ? 'active' : ''} onClick={() => setView('map')} aria-current={view === 'map' ? 'page' : undefined}><span>⌘</span> App map</button>
           <button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')} aria-current={view === 'catalog' ? 'page' : undefined}><span>▦</span> Components</button>
+          <button className={view === 'systems' ? 'active' : ''} onClick={() => setView('systems')} aria-current={view === 'systems' ? 'page' : undefined}><span>◇</span> Systems</button>
           <button className="settings-trigger" type="button" onClick={() => setEditingConfig(true)} aria-label="Edit JSON configuration" title="Edit JSON configuration"><GearIcon /></button>
         </nav>
         <div className="app-identity"><span className="app-avatar">{config.app.name.slice(0, 1)}</span><span><strong>{config.app.name}</strong><small>{config.app.platform}</small></span></div>
@@ -123,7 +126,8 @@ function VisiFlow({ config, onConfig }: { config: VisiFlowConfig; onConfig: (con
 
       <main className={`main-layout view-${view}`}>
         {view === 'map' ? <AppMap config={config} screenId={screenId} scenario={scenario} selection={selection} protocol={protocol} cadence={cadence} onSelect={setSelection} /> :
-          <Catalog config={config} scenario={scenario} selection={selection} search={search} screen={catalogScreen} protocol={protocol} cadence={cadence} state={stateFilter} onSearch={setSearch} onScreen={setCatalogScreen} onProtocol={setProtocol} onCadence={setCadence} onState={setStateFilter} onSelect={setSelection} onShowInApp={showInApp} />}
+          view === 'catalog' ? <Catalog config={config} scenario={scenario} selection={selection} search={search} screen={catalogScreen} protocol={protocol} cadence={cadence} state={stateFilter} onSearch={setSearch} onScreen={setCatalogScreen} onProtocol={setProtocol} onCadence={setCadence} onState={setStateFilter} onSelect={setSelection} onShowInApp={showInApp} /> :
+            <SystemsCatalog config={config} selection={selection} search={systemsSearch} protocol={protocol} cadence={cadence} onSearch={setSystemsSearch} onSelect={setSelection} />}
         <DetailPanel config={config} selection={selection} onClose={() => setSelection(null)} />
       </main>
       {editingConfig && <ConfigEditor config={config} onApply={onConfig} onClose={() => setEditingConfig(false)} />}

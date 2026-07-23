@@ -79,8 +79,6 @@ export function AppMap({ config, screenId, scenario, selection, protocol, cadenc
     screen.contentHeight ?? screen.height,
     ...components.map((component) => (componentPositions.get(component.id)?.y ?? component.visual.y) + component.visual.height),
   ), [componentPositions, components, screen.contentHeight, screen.height])
-  const leftSystems = config.systems.filter((item, index) => (item.placement ?? (index % 2 ? 'right' : 'left')) === 'left')
-  const rightSystems = config.systems.filter((item, index) => (item.placement ?? (index % 2 ? 'right' : 'left')) === 'right')
   const componentIds = useMemo(() => new Set(components.map((item) => item.id)), [components])
   const visibleConnections = useMemo(() => config.connections.filter((connection) => {
     const componentsInConnection = [connection.source, connection.target].filter((ref) => ref.kind === 'component')
@@ -89,6 +87,12 @@ export function AppMap({ config, screenId, scenario, selection, protocol, cadenc
     const cadenceMatch = cadence === 'all' || connection.cadence.kind === cadence
     return onScreen && protocolMatch && cadenceMatch
   }), [cadence, componentIds, config.connections, protocol])
+  const visibleSystemIds = useMemo(() => new Set(visibleConnections.flatMap((connection) =>
+    [connection.source, connection.target].filter((ref) => ref.kind === 'system').map((ref) => ref.id),
+  )), [visibleConnections])
+  const visibleSystems = useMemo(() => config.systems.filter((system) => visibleSystemIds.has(system.id)), [config.systems, visibleSystemIds])
+  const leftSystems = visibleSystems.filter((item, index) => (item.placement ?? (index % 2 ? 'right' : 'left')) === 'left')
+  const rightSystems = visibleSystems.filter((item, index) => (item.placement ?? (index % 2 ? 'right' : 'left')) === 'right')
 
   const register = useCallback((key: string, node: HTMLElement | null) => {
     if (node) nodes.current.set(key, node)
