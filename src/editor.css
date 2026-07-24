@@ -84,6 +84,8 @@
 .entity-app.selected { border-color: color-mix(in srgb, var(--accent) 48%, var(--line)); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
 .entity-browser section { margin-top: 15px; }
+.entity-browser .screen-tree-group { margin-top: 0; }
+.editor-screen-tree .screen-tree { padding: 0 2px; }
 .entity-browser section > header { height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 7px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 .entity-browser section > header button { width: 23px; height: 23px; border: 1px solid var(--line); border-radius: 6px; background: #171b26; line-height: 1; }
 .entity-browser section > div { display: grid; gap: 2px; }
@@ -170,6 +172,7 @@
 .editor-field input[type="color"] { padding: 4px; }
 .editor-field textarea { min-height: 66px; resize: vertical; padding: 8px; line-height: 1.45; }
 .editor-field input:focus, .editor-field select:focus, .editor-field textarea:focus { border-color: color-mix(in srgb, var(--accent) 70%, #fff); outline: none; }
+.editor-note { padding: 9px; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); background: #0b0e15; font-size: 9px; line-height: 1.45; }
 
 .inspector-action-row { display: flex; gap: 7px; }
 .inspector-action-row button, .state-assets button { font-size: 9px; }
@@ -180,6 +183,7 @@
 .advanced-field-grid, .state-override-grid { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .state-override-grid + .state-override-grid { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--line); }
 .state-override-grid > strong { grid-column: 1 / -1; color: var(--accent); font-size: 9px; text-transform: uppercase; }
+.component-calls { display: grid; gap: 8px; margin-top: 4px; padding-top: 13px; border-top: 1px solid var(--line); }.component-calls > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }.component-calls > header > div { display: flex; flex-direction: column; gap: 2px; }.component-calls > header strong { font-size: 11px; }.component-calls > header span, .component-calls > p { color: var(--muted); font-size: 9px; }.component-calls > header button { padding: 6px 8px; font-size: 9px; }.call-editor { border: 1px solid var(--line); border-radius: 7px; background: #0b0e15; }.call-editor summary { display: flex; align-items: center; justify-content: space-between; gap: 7px; padding: 9px; cursor: pointer; }.call-editor summary > span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }.call-editor summary strong, .call-editor summary small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.call-editor summary strong { font-size: 10px; }.call-editor summary small { color: var(--muted); font-size: 8px; }.call-editor summary i { color: var(--accent); font-size: 7px; font-style: normal; white-space: nowrap; }.call-editor.derived summary i { color: var(--orange); }.call-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; padding: 10px; border-top: 1px solid var(--line); }.call-field-grid .wide { grid-column: 1 / -1; }.call-field-grid .danger-button { justify-self: start; }.derived-call { padding: 10px; border-top: 1px solid var(--line); }.derived-call p { margin: 0 0 8px; color: var(--muted); font-size: 9px; line-height: 1.5; }.derived-call button { padding: 6px 8px; font-size: 9px; }
 .scenario-states { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
 .scenario-states label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .scenario-states label span { min-width: 0; overflow: hidden; color: var(--soft); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }

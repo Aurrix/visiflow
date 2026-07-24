@@ -1,38 +1,36 @@
 import { useMemo, useRef, useState } from 'react'
+import { registerProjectAssetSource } from './assets'
 import { parseConfig } from './config'
 import { EditorCanvas, type Bounds } from './components/EditorCanvas'
+import { ScreenTree } from './components/ScreenTree'
 import { scaledContentHeight } from './editor-utils'
+import {
+  assetPathFor,
+  assignConnectionOwner,
+  stageAsset,
+} from './project-workspace'
+import { effectiveScreenGroup, screenDescendants } from './screen-tree'
 import type {
   AppComponent,
   AppScreen,
+  BackgroundTask,
+  CadenceKind,
   ComponentState,
   Connection,
+  EndpointRef,
   ExternalSystem,
+  ProjectWorkspace,
   Scenario,
   VisiFlowConfig,
   VisualKind,
 } from './types'
 
-type WritableFileHandle = {
-  name: string
-  getFile: () => Promise<File>
-  createWritable: () => Promise<{ write: (data: string) => Promise<void>; close: () => Promise<void> }>
-}
+export type EditorEntityKind = 'app' | 'screen' | 'component' | 'task' | 'system' | 'connection' | 'scenario'
+export type EditorSelection = { kind: EditorEntityKind; id?: string }
+type EntityKind = EditorEntityKind
+type Selection = EditorSelection
+const cadenceKinds: CadenceKind[] = ['user-event', 'lifecycle', 'scheduled', 'recurring', 'polling', 'push', 'continuous', 'custom']
 
-type PickerWindow = Window & {
-  showOpenFilePicker?: (options?: unknown) => Promise<WritableFileHandle[]>
-  showSaveFilePicker?: (options?: unknown) => Promise<WritableFileHandle>
-}
-
-type EntityKind = 'app' | 'screen' | 'component' | 'system' | 'connection' | 'scenario'
-type Selection = { kind: EntityKind; id?: string }
-type History = { past: VisiFlowConfig[]; present: VisiFlowConfig; future: VisiFlowConfig[] }
-
-const pickerOptions = {
-  types: [{ description: 'VisiFlow JSON configuration', accept: { 'application/json': ['.json'] } }],
-}
-
-const clone = (config: VisiFlowConfig) => structuredClone(config)
 const uniqueId = (prefix: string, used: string[]) => {
   let candidate = prefix
   let index = 2
@@ -40,45 +38,132 @@ const uniqueId = (prefix: string, used: string[]) => {
   return candidate
 }
 
-function downloadText(text: string, name: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = name
-  anchor.click()
-  URL.revokeObjectURL(url)
+const endpointFromValue = (value: string): EndpointRef => {
+  const [kind, id] = value.split(':')
+  return { kind: kind as EndpointRef['kind'], id }
 }
 
-async function readImage(file: File): Promise<{ src: string; width: number; height: number }> {
-  const src = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
-  const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight })
-    image.onerror = () => reject(new Error('The selected file is not a readable image.'))
-    image.src = src
-  })
-  return { src, ...dimensions }
+const normalizeConnectionCadence = (connection: Connection) => {
+  const touchesTask = connection.source.kind === 'task' || connection.target.kind === 'task'
+  if (touchesTask) delete connection.cadence
+  else connection.cadence ??= { kind: 'user-event', label: 'On user action' }
+}
+
+async function readImage(file: File): Promise<{ file: File; width: number; height: number }> {
+  const src = URL.createObjectURL(file)
+  try {
+    const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight })
+      image.onerror = () => reject(new Error('The selected file is not a readable image.'))
+      image.src = src
+    })
+    return { file, ...dimensions }
+  } finally {
+    URL.revokeObjectURL(src)
+  }
 }
 
 function Field({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
   return <label className={`editor-field${wide ? ' wide' : ''}`}><span>{label}</span>{children}</label>
 }
 
-function ImageButton({ label, onImage }: { label: string; onImage: (image: Awaited<ReturnType<typeof readImage>>) => void }) {
+function ImageButton({ label, onImage, onComplete }: {
+  label: string
+  onImage: (image: Awaited<ReturnType<typeof readImage>>) => void
+  onComplete: () => void
+}) {
   const ref = useRef<HTMLInputElement>(null)
   return <>
     <button type="button" className="secondary-button image-import" onClick={() => ref.current?.click()}>{label}</button>
     <input ref={ref} className="sr-only" type="file" accept="image/*" onChange={(event) => {
       const file = event.target.files?.[0]
-      if (file) void readImage(file).then(onImage)
+      if (file) void readImage(file).then((image) => {
+        onImage(image)
+        onComplete()
+      })
       event.target.value = ''
     }} />
   </>
+}
+
+function ComponentCalls({ config, component, workspace, commit, onAssignOwner, onSelectComponent }: {
+  config: VisiFlowConfig
+  component: AppComponent
+  workspace: ProjectWorkspace
+  commit: (mutate: (draft: VisiFlowConfig) => void) => void
+  onAssignOwner: (connectionId: string, componentId: string) => void
+  onSelectComponent: (componentId: string) => void
+}) {
+  const related = config.connections.filter((connection) =>
+    (connection.source.kind === 'component' && connection.source.id === component.id) ||
+    (connection.target.kind === 'component' && connection.target.id === component.id),
+  )
+  const peerOptions = [
+    ...config.tasks.map((task) => ({ value: `task:${task.id}`, label: `${task.name} · Task` })),
+    ...config.systems.map((system) => ({ value: `system:${system.id}`, label: system.name })),
+    ...config.components.filter((item) => item.id !== component.id).map((item) => ({ value: `component:${item.id}`, label: item.name })),
+  ]
+  const ownerFor = (connection: Connection) => workspace.connectionOwners.get(connection.id) ??
+    (connection.source.kind === 'component' ? connection.source.id : connection.target.kind === 'component' ? connection.target.id : undefined)
+
+  const addCall = () => {
+    const peer = peerOptions[0]
+    if (!peer) return
+    const id = uniqueId(`${component.id}-call`, config.connections.map((connection) => connection.id))
+    commit((draft) => draft.connections.push({
+      id,
+      name: 'New component call',
+      source: { kind: 'component', id: component.id },
+      target: endpointFromValue(peer.value),
+      protocol: peer.value.startsWith('task:') ? 'Internal' : 'HTTPS',
+      description: '',
+      ...(peer.value.startsWith('task:') ? {} : { cadence: { kind: 'user-event' as const, label: 'On user action' } }),
+    }))
+    onAssignOwner(id, component.id)
+  }
+
+  return <section className="component-calls wide">
+    <header><div><strong>Calls and endpoints</strong><span>{related.length} related request path{related.length === 1 ? '' : 's'}</span></div><button type="button" className="secondary-button" onClick={addCall} disabled={!peerOptions.length}>Add call</button></header>
+    {!related.length && <p>No calls are declared for this component.</p>}
+    {related.map((connection) => {
+      const owner = ownerFor(connection)
+      const owned = owner === component.id
+      const outgoing = connection.source.kind === 'component' && connection.source.id === component.id
+      const peer = outgoing ? connection.target : connection.source
+      const update = (mutate: (item: Connection) => void) => commit((draft) => mutate(draft.connections.find((item) => item.id === connection.id)!))
+      return <details className={`call-editor${owned ? '' : ' derived'}`} key={connection.id} open={owned}>
+        <summary><span><strong>{connection.name}</strong><small>{outgoing ? 'Outgoing' : 'Incoming'} · {connection.protocol} {connection.method ?? ''} {connection.endpoint ?? ''}</small></span><i>{owned ? 'Owned here' : `Owned by ${owner ?? 'project'}`}</i></summary>
+        {owned ? <div className="call-field-grid">
+          <Field label="Name" wide><input value={connection.name} onChange={(event) => update((item) => { item.name = event.target.value })} /></Field>
+          <Field label="Call ID" wide><input value={connection.id} onChange={(event) => update((item) => { item.id = event.target.value })} /></Field>
+          <Field label="Direction"><select value={outgoing ? 'outgoing' : 'incoming'} onChange={(event) => update((item) => {
+            const componentRef = { kind: 'component' as const, id: component.id }
+            const other = outgoing ? item.target : item.source
+            item.source = event.target.value === 'outgoing' ? componentRef : other
+            item.target = event.target.value === 'outgoing' ? other : componentRef
+          })}><option value="outgoing">Outgoing</option><option value="incoming">Incoming</option></select></Field>
+          <Field label="Peer"><select value={`${peer.kind}:${peer.id}`} onChange={(event) => update((item) => {
+            if (outgoing) item.target = endpointFromValue(event.target.value)
+            else item.source = endpointFromValue(event.target.value)
+            normalizeConnectionCadence(item)
+            if (item.source.kind !== 'system' && item.target.kind !== 'system') item.protocol = 'Internal'
+          })}>{peerOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></Field>
+          <Field label="Protocol"><input value={connection.protocol} onChange={(event) => update((item) => { item.protocol = event.target.value })} /></Field>
+          <Field label="Method"><input value={connection.method ?? ''} onChange={(event) => update((item) => { item.method = event.target.value || undefined })} /></Field>
+          <Field label="Endpoint" wide><input value={connection.endpoint ?? ''} onChange={(event) => update((item) => { item.endpoint = event.target.value || undefined })} /></Field>
+          {connection.cadence && <>
+            <Field label="Cadence"><select value={connection.cadence.kind} onChange={(event) => update((item) => { if (item.cadence) item.cadence.kind = event.target.value as CadenceKind })}>{cadenceKinds.map((value) => <option key={value}>{value}</option>)}</select></Field>
+            <Field label="Cadence label"><input value={connection.cadence.label} onChange={(event) => update((item) => { if (item.cadence) item.cadence.label = event.target.value })} /></Field>
+            <Field label="Interval ms"><input type="number" min="1" value={connection.cadence.intervalMs ?? ''} onChange={(event) => update((item) => { if (item.cadence) item.cadence.intervalMs = event.target.value ? Number(event.target.value) : undefined })} /></Field>
+            <Field label="Cron"><input value={connection.cadence.cron ?? ''} onChange={(event) => update((item) => { if (item.cadence) item.cadence.cron = event.target.value || undefined })} /></Field>
+          </>}
+          <Field label="Description" wide><textarea value={connection.description} onChange={(event) => update((item) => { item.description = event.target.value })} /></Field>
+          <button type="button" className="danger-button wide" onClick={() => commit((draft) => { draft.connections = draft.connections.filter((item) => item.id !== connection.id) })}>Remove call</button>
+        </div> : <div className="derived-call"><p>This call is stored with another component to keep one source of truth.</p>{owner && <button type="button" className="secondary-button" onClick={() => onSelectComponent(owner)}>Open owning component</button>}</div>}
+      </details>
+    })}
+  </section>
 }
 
 function modeFor(component: AppComponent): 'region' | 'image' | 'rendered' {
@@ -87,176 +172,125 @@ function modeFor(component: AppComponent): 'region' | 'image' | 'rendered' {
   return 'rendered'
 }
 
-export function DiskConfigEditor({ initialText }: { initialText: string }) {
-  const initial = parseConfig(JSON.parse(initialText))
-  if (!initial.ok) throw new Error(`Invalid bundled editor configuration: ${initial.errors.join(', ')}`)
+export interface DiskConfigEditorProps {
+  config: VisiFlowConfig
+  workspace: ProjectWorkspace
+  selection: EditorSelection
+  screenId: string
+  scenarioId: string
+  dirty: boolean
+  canUndo: boolean
+  canRedo: boolean
+  statusMessage: string
+  statusKind: 'valid' | 'invalid' | 'saving' | 'error'
+  toolbarExtras?: React.ReactNode
+  onCommit: (mutate: (draft: VisiFlowConfig) => void) => void
+  onWorkspaceChange: (mutate: (draft: ProjectWorkspace) => void) => void
+  onSelection: (selection: EditorSelection) => void
+  onScreen: (screenId: string) => void
+  onScenario: (scenarioId: string) => void
+  onUndo: () => void
+  onRedo: () => void
+  onPersistBoundary: () => void
+}
 
-  const [history, setHistory] = useState<History>({ past: [], present: initial.data, future: [] })
-  const config = history.present
-  const [selection, setSelection] = useState<Selection>({ kind: 'screen', id: config.app.initialScreenId })
-  const [screenId, setScreenId] = useState(config.app.initialScreenId)
-  const [scenarioId, setScenarioId] = useState(config.initialScenarioId ?? config.scenarios[0].id)
+export function DiskConfigEditor({
+  config,
+  workspace,
+  selection,
+  screenId,
+  scenarioId,
+  dirty,
+  canUndo,
+  canRedo,
+  statusMessage,
+  statusKind,
+  toolbarExtras,
+  onCommit,
+  onWorkspaceChange,
+  onSelection,
+  onScreen,
+  onScenario,
+  onUndo,
+  onRedo,
+  onPersistBoundary,
+}: DiskConfigEditorProps) {
   const [drawMode, setDrawMode] = useState(false)
-  const [fileHandle, setFileHandle] = useState<WritableFileHandle | null>(null)
-  const [fileName, setFileName] = useState('visiflow-config.json')
-  const [savedSnapshot, setSavedSnapshot] = useState(JSON.stringify(config))
-  const [message, setMessage] = useState('Example configuration loaded')
-  const uploadRef = useRef<HTMLInputElement>(null)
-
   const validation = useMemo(() => parseConfig(config), [config])
-  const dirty = JSON.stringify(config) !== savedSnapshot
   const screen = config.screens.find((item) => item.id === screenId) ?? config.screens[0]
   const scenario = config.scenarios.find((item) => item.id === scenarioId) ?? config.scenarios[0]
+  const commit = onCommit
+  const mutateWorkspace = onWorkspaceChange
 
-  const commit = (mutate: (draft: VisiFlowConfig) => void) => {
-    setHistory((current) => {
-      const next = clone(current.present)
-      mutate(next)
-      return { past: [...current.past.slice(-79), current.present], present: next, future: [] }
-    })
+  const stageEditorAsset = (file: File, kind: 'screen' | 'component', id: string, state?: 'active' | 'inactive') => {
+    const path = assetPathFor(file, kind, id, state)
+    const source = URL.createObjectURL(file)
+    registerProjectAssetSource(path, source)
+    mutateWorkspace((draft) => stageAsset(draft, path, file))
+    return path
   }
-
-  const replaceConfig = (next: VisiFlowConfig, nextName: string, handle: WritableFileHandle | null) => {
-    setHistory({ past: [], present: next, future: [] })
-    setFileName(nextName)
-    setFileHandle(handle)
-    setSavedSnapshot(JSON.stringify(next))
-    const nextScreen = next.screens.find((item) => item.id === next.app.initialScreenId) ?? next.screens[0]
-    setScreenId(nextScreen.id)
-    setScenarioId(next.initialScenarioId ?? next.scenarios[0].id)
-    setSelection({ kind: 'screen', id: nextScreen.id })
-    setMessage(`Opened ${nextName}`)
-  }
-
-  const openText = (text: string, name: string, handle: WritableFileHandle | null) => {
-    try {
-      const result = parseConfig(JSON.parse(text))
-      if (!result.ok) {
-        setMessage(`Could not open ${name}: ${result.errors[0]}`)
-        return
-      }
-      replaceConfig(result.data, name, handle)
-    } catch (error) {
-      setMessage(`Could not open ${name}: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  const openFile = async () => {
-    const picker = window as PickerWindow
-    if (!picker.showOpenFilePicker) {
-      uploadRef.current?.click()
-      return
-    }
-    try {
-      const [handle] = await picker.showOpenFilePicker(pickerOptions)
-      if (handle) openText(await (await handle.getFile()).text(), handle.name, handle)
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) setMessage(`Could not open file: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  const saveToHandle = async (handle: WritableFileHandle) => {
-    if (!validation.ok) {
-      setMessage(`Fix configuration issue before saving: ${validation.errors[0]}`)
-      return
-    }
-    const text = JSON.stringify(config, null, 2)
-    const writable = await handle.createWritable()
-    await writable.write(text)
-    await writable.close()
-    setFileHandle(handle)
-    setFileName(handle.name)
-    setSavedSnapshot(JSON.stringify(config))
-    setMessage(`Saved ${handle.name}`)
-  }
-
-  const saveAs = async () => {
-    if (!validation.ok) {
-      setMessage(`Fix configuration issue before saving: ${validation.errors[0]}`)
-      return
-    }
-    const picker = window as PickerWindow
-    if (!picker.showSaveFilePicker) {
-      downloadText(JSON.stringify(config, null, 2), fileName)
-      setMessage(`Downloaded ${fileName}; direct disk saving is unavailable in this browser`)
-      return
-    }
-    try {
-      await saveToHandle(await picker.showSaveFilePicker({ ...pickerOptions, suggestedName: fileName }))
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) setMessage(`Could not save file: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  const save = async () => {
-    if (!fileHandle) return saveAs()
-    try {
-      await saveToHandle(fileHandle)
-    } catch (error) {
-      setMessage(`Could not save file: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  const reconcileNavigation = (next: VisiFlowConfig) => {
-    if (!next.screens.some((item) => item.id === screenId)) setScreenId(next.screens[0].id)
-    if (!next.scenarios.some((item) => item.id === scenarioId)) setScenarioId(next.scenarios[0].id)
-    if (!selection.id) return
-    const exists = selection.kind === 'screen' ? next.screens.some((item) => item.id === selection.id)
-      : selection.kind === 'component' ? next.components.some((item) => item.id === selection.id)
-        : selection.kind === 'system' ? next.systems.some((item) => item.id === selection.id)
-          : selection.kind === 'connection' ? next.connections.some((item) => item.id === selection.id)
-            : selection.kind === 'scenario' ? next.scenarios.some((item) => item.id === selection.id)
-              : true
-    if (!exists) setSelection({ kind: 'app' })
-  }
-  const undo = () => {
-    const previous = history.past.at(-1)
-    if (!previous) return
-    setHistory({ past: history.past.slice(0, -1), present: previous, future: [history.present, ...history.future] })
-    reconcileNavigation(previous)
-  }
-  const redo = () => {
-    const next = history.future[0]
-    if (!next) return
-    setHistory({ past: [...history.past, history.present], present: next, future: history.future.slice(1) })
-    reconcileNavigation(next)
-  }
+  const undo = () => { onUndo(); onPersistBoundary() }
+  const redo = () => { onRedo(); onPersistBoundary() }
 
   const selectScreen = (id: string) => {
-    setScreenId(id)
-    setSelection({ kind: 'screen', id })
+    onScreen(id)
+    onSelection({ kind: 'screen', id })
   }
 
   const addEntity = (kind: Exclude<EntityKind, 'app'>) => {
     if (kind === 'component') {
       setDrawMode(true)
-      setMessage('Drag on the device canvas to create a component region')
       return
     }
-    if (kind === 'connection' && !config.components.length && !config.systems.length) {
-      setMessage('Create a component or system before adding a connection')
+    if (kind === 'connection' && !config.components.length && !config.tasks.length && !config.systems.length) {
       return
     }
     let createdId = ''
     commit((draft) => {
       if (kind === 'screen') {
         createdId = uniqueId('new-screen', draft.screens.map((item) => item.id))
-        draft.screens.push({ id: createdId, name: 'New screen', width: screen.width, height: screen.height, background: '#151925' })
+        const rootOrders = draft.screens.filter((item) => !item.parentId).map((item, index) => item.order ?? index)
+        draft.screens.push({ id: createdId, name: 'New screen', order: Math.max(-1, ...rootOrders) + 1, width: screen.width, height: screen.height, background: '#151925' })
+      } else if (kind === 'task') {
+        createdId = uniqueId('new-task', draft.tasks.map((item) => item.id))
+        draft.tasks.push({
+          id: createdId,
+          name: 'New task',
+          type: 'Background task',
+          description: '',
+          scope: { kind: 'screen', screenId },
+          trigger: { kind: 'scheduled', label: 'On schedule' },
+          defaultState: 'active',
+        })
       } else if (kind === 'system') {
         createdId = uniqueId('new-system', draft.systems.map((item) => item.id))
         draft.systems.push({ id: createdId, name: 'New system', type: 'Service', description: '', color: '#7c8cff' })
       } else if (kind === 'connection') {
-        const source = draft.components[0] ? { kind: 'component' as const, id: draft.components[0].id } : { kind: 'system' as const, id: draft.systems[0].id }
-        const target = draft.systems[0] ? { kind: 'system' as const, id: draft.systems[0].id } : source
+        const source: EndpointRef = draft.components[0]
+          ? { kind: 'component', id: draft.components[0].id }
+          : draft.tasks[0] ? { kind: 'task', id: draft.tasks[0].id } : { kind: 'system', id: draft.systems[0].id }
+        const target: EndpointRef = draft.systems[0]
+          ? { kind: 'system', id: draft.systems[0].id }
+          : draft.tasks[0] ? { kind: 'task', id: draft.tasks[0].id } : source
         createdId = uniqueId('new-connection', draft.connections.map((item) => item.id))
-        draft.connections.push({ id: createdId, name: 'New request', source, target, protocol: 'HTTPS', description: '', cadence: { kind: 'user-event', label: 'On user action' } })
+        const touchesTask = source.kind === 'task' || target.kind === 'task'
+        draft.connections.push({
+          id: createdId,
+          name: 'New request',
+          source,
+          target,
+          protocol: source.kind !== 'system' && target.kind !== 'system' ? 'Internal' : 'HTTPS',
+          description: '',
+          ...(touchesTask ? {} : { cadence: { kind: 'user-event' as const, label: 'On user action' } }),
+        })
       } else {
         createdId = uniqueId('new-scenario', draft.scenarios.map((item) => item.id))
-        draft.scenarios.push({ id: createdId, name: 'New scenario', screenId, componentStates: {} })
+        draft.scenarios.push({ id: createdId, name: 'New scenario', screenId, componentStates: {}, taskStates: {} })
       }
     })
-    if (kind === 'screen') setScreenId(createdId)
-    setSelection({ kind, id: createdId })
+    if (kind === 'connection' && config.components[0]) mutateWorkspace((draft) => assignConnectionOwner(draft, createdId, config.components[0].id))
+    if (kind === 'screen') onScreen(createdId)
+    onSelection({ kind, id: createdId })
   }
 
   const createComponent = (bounds: Bounds) => {
@@ -273,7 +307,7 @@ export function DiskConfigEditor({ initialText }: { initialText: string }) {
         visual: { kind: 'hotspot', ...bounds },
       })
     })
-    setSelection({ kind: 'component', id })
+    onSelection({ kind: 'component', id })
     setDrawMode(false)
   }
 
@@ -292,17 +326,21 @@ export function DiskConfigEditor({ initialText }: { initialText: string }) {
       delete copy.visual.layout
       draft.components.push(copy)
     })
-    setSelection({ kind: 'component', id })
+    onSelection({ kind: 'component', id })
   }
 
   const rename = (kind: EntityKind, oldId: string, nextId: string) => commit((draft) => {
     if (kind === 'screen') {
       const item = draft.screens.find((value) => value.id === oldId)
       if (item) item.id = nextId
+      draft.screens.forEach((value) => { if (value.parentId === oldId) value.parentId = nextId })
       if (draft.app.initialScreenId === oldId) draft.app.initialScreenId = nextId
       draft.components.forEach((value) => { if (value.screenId === oldId) value.screenId = nextId })
+      draft.tasks.forEach((value) => {
+        if (value.scope.kind === 'screen' && value.scope.screenId === oldId) value.scope.screenId = nextId
+      })
       draft.scenarios.forEach((value) => { if (value.screenId === oldId) value.screenId = nextId })
-      setScreenId(nextId)
+      onScreen(nextId)
     } else if (kind === 'component') {
       const item = draft.components.find((value) => value.id === oldId)
       if (item) item.id = nextId
@@ -316,6 +354,19 @@ export function DiskConfigEditor({ initialText }: { initialText: string }) {
           delete value.componentStates[oldId]
         }
       })
+    } else if (kind === 'task') {
+      const item = draft.tasks.find((value) => value.id === oldId)
+      if (item) item.id = nextId
+      draft.connections.forEach((value) => {
+        if (value.source.kind === 'task' && value.source.id === oldId) value.source.id = nextId
+        if (value.target.kind === 'task' && value.target.id === oldId) value.target.id = nextId
+      })
+      draft.scenarios.forEach((value) => {
+        if (oldId in value.taskStates) {
+          value.taskStates[nextId] = value.taskStates[oldId]
+          delete value.taskStates[oldId]
+        }
+      })
     } else if (kind === 'system') {
       const item = draft.systems.find((value) => value.id === oldId)
       if (item) item.id = nextId
@@ -327,12 +378,12 @@ export function DiskConfigEditor({ initialText }: { initialText: string }) {
       const item = draft.scenarios.find((value) => value.id === oldId)
       if (item) item.id = nextId
       if (draft.initialScenarioId === oldId) draft.initialScenarioId = nextId
-      setScenarioId(nextId)
+      onScenario(nextId)
     } else if (kind === 'connection') {
       const item = draft.connections.find((value) => value.id === oldId)
       if (item) item.id = nextId
     }
-    setSelection({ kind, id: nextId })
+    onSelection({ kind, id: nextId })
   })
 
   const deleteSelection = () => {
@@ -341,40 +392,58 @@ export function DiskConfigEditor({ initialText }: { initialText: string }) {
     const componentIds = selection.kind === 'screen'
       ? config.components.filter((item) => item.screenId === id).map((item) => item.id)
       : selection.kind === 'component' ? [id] : []
+    const taskIds = selection.kind === 'screen'
+      ? config.tasks.filter((item) => item.scope.kind === 'screen' && item.scope.screenId === id).map((item) => item.id)
+      : selection.kind === 'task' ? [id] : []
     const affectedConnections = config.connections.filter((item) =>
       (item.source.kind === selection.kind && item.source.id === id) ||
       (item.target.kind === selection.kind && item.target.id === id) ||
       (item.source.kind === 'component' && componentIds.includes(item.source.id)) ||
-      (item.target.kind === 'component' && componentIds.includes(item.target.id)),
+      (item.target.kind === 'component' && componentIds.includes(item.target.id)) ||
+      (item.source.kind === 'task' && taskIds.includes(item.source.id)) ||
+      (item.target.kind === 'task' && taskIds.includes(item.target.id)),
     )
     const details = [
       componentIds.length ? `${componentIds.length} component(s)` : '',
+      taskIds.length ? `${taskIds.length} task(s)` : '',
       affectedConnections.length ? `${affectedConnections.length} connection(s)` : '',
-      componentIds.length ? 'related scenario states' : '',
+      componentIds.length || taskIds.length ? 'related scenario states' : '',
     ].filter(Boolean).join(', ')
     if (!window.confirm(`Delete this ${selection.kind}${details ? ` and ${details}` : ''}? This can be undone.`)) return
     if (selection.kind === 'screen' && config.screens.length === 1) {
-      setMessage('A configuration must contain at least one screen')
       return
     }
     if (selection.kind === 'scenario' && config.scenarios.length === 1) {
-      setMessage('A configuration must contain at least one scenario')
       return
     }
     commit((draft) => {
       if (selection.kind === 'screen') {
+        const inheritedGroup = effectiveScreenGroup(draft.screens, id)
+        draft.screens.forEach((item) => {
+          if (item.parentId === id) {
+            delete item.parentId
+            if (inheritedGroup) item.group = inheritedGroup
+            else delete item.group
+          }
+        })
         draft.screens = draft.screens.filter((item) => item.id !== id)
         draft.components = draft.components.filter((item) => !componentIds.includes(item.id))
+        draft.tasks = draft.tasks.filter((item) => !taskIds.includes(item.id))
         draft.connections = draft.connections.filter((item) => !affectedConnections.some((connection) => connection.id === item.id))
         draft.scenarios.forEach((item) => {
           if (item.screenId === id) item.screenId = draft.screens[0].id
           componentIds.forEach((componentId) => delete item.componentStates[componentId])
+          taskIds.forEach((taskId) => delete item.taskStates[taskId])
         })
         if (draft.app.initialScreenId === id) draft.app.initialScreenId = draft.screens[0].id
       } else if (selection.kind === 'component') {
         draft.components = draft.components.filter((item) => item.id !== id)
         draft.connections = draft.connections.filter((item) => !affectedConnections.some((connection) => connection.id === item.id))
         draft.scenarios.forEach((item) => delete item.componentStates[id])
+      } else if (selection.kind === 'task') {
+        draft.tasks = draft.tasks.filter((item) => item.id !== id)
+        draft.connections = draft.connections.filter((item) => !affectedConnections.some((connection) => connection.id === item.id))
+        draft.scenarios.forEach((item) => delete item.taskStates[id])
       } else if (selection.kind === 'system') {
         draft.systems = draft.systems.filter((item) => item.id !== id)
         draft.connections = draft.connections.filter((item) => !affectedConnections.some((connection) => connection.id === item.id))
@@ -385,26 +454,28 @@ export function DiskConfigEditor({ initialText }: { initialText: string }) {
       }
     })
     const fallback = selection.kind === 'screen' ? config.screens.find((item) => item.id !== id)?.id : screenId
-    if (selection.kind === 'screen' && fallback) setScreenId(fallback)
-    setSelection(selection.kind === 'screen' && fallback ? { kind: 'screen', id: fallback } : { kind: 'app' })
+    if (selection.kind === 'screen' && fallback) onScreen(fallback)
+    onSelection(selection.kind === 'screen' && fallback ? { kind: 'screen', id: fallback } : { kind: 'app' })
   }
 
-  const entityGroups: { kind: Exclude<EntityKind, 'app'>; label: string; items: { id: string; name: string }[] }[] = [
-    { kind: 'screen', label: 'Screens', items: config.screens },
+  const entityGroups: { kind: Exclude<EntityKind, 'app' | 'screen'>; label: string; items: { id: string; name: string }[] }[] = [
     { kind: 'component', label: 'Components', items: config.components.filter((item) => item.screenId === screen.id) },
+    { kind: 'task', label: 'Tasks', items: config.tasks },
     { kind: 'system', label: 'Systems', items: config.systems },
     { kind: 'connection', label: 'Connections', items: config.connections },
     { kind: 'scenario', label: 'Scenarios', items: config.scenarios },
   ]
 
   return (
-    <div className="disk-editor" onKeyDown={(event) => {
+    <div className="disk-editor" onBlurCapture={(event) => {
+      if ((event.target as HTMLElement).matches('input:not([type="file"]), textarea, select')) onPersistBoundary()
+    }} onKeyDown={(event) => {
       if (event.key === 'Escape') {
         setDrawMode(false)
         return
       }
       if (!(event.ctrlKey || event.metaKey)) return
-      if (event.key.toLowerCase() === 's') { event.preventDefault(); void save() }
+      if (event.key.toLowerCase() === 's') { event.preventDefault(); onPersistBoundary() }
       if (event.key.toLowerCase() === 'z') {
         event.preventDefault()
         if (event.shiftKey) redo()
@@ -413,42 +484,36 @@ export function DiskConfigEditor({ initialText }: { initialText: string }) {
       if (event.key.toLowerCase() === 'y') { event.preventDefault(); redo() }
     }}>
       <header className="disk-editor-toolbar">
-        <div className="disk-editor-brand"><div className="brand-mark"><i /><i /><i /></div><div><strong>VisiFlow Config Editor</strong><span>{fileName}{dirty ? ' • modified' : ''}</span></div></div>
+        <div className="disk-editor-brand"><div className="brand-mark"><i /><i /><i /></div><div><strong>VisiFlow Project Editor</strong><span>{workspace.manifestPath}{dirty ? ' • modified' : ''}</span></div></div>
         <div className="disk-editor-actions">
-          <button type="button" className="icon-button" onClick={undo} disabled={!history.past.length} aria-label="Undo">↶</button>
-          <button type="button" className="icon-button" onClick={redo} disabled={!history.future.length} aria-label="Redo">↷</button>
-          <button type="button" className="secondary-button" onClick={() => replaceConfig(initial.data, 'visiflow-config.json', null)}>New</button>
-          <button type="button" className="secondary-button" onClick={openFile}>Open JSON</button>
-          <button type="button" className="primary-button" onClick={() => void save()} disabled={!validation.ok}>Save</button>
-          <button type="button" className="secondary-button" onClick={() => void saveAs()} disabled={!validation.ok}>Save as</button>
-          <input ref={uploadRef} className="sr-only" type="file" accept=".json,application/json" aria-label="Choose JSON configuration" onChange={(event) => {
-            const file = event.target.files?.[0]
-            if (file) void file.text().then((text) => openText(text, file.name, null))
-            event.target.value = ''
-          }} />
+          <button type="button" className="icon-button" onClick={undo} disabled={!canUndo} aria-label="Undo">↶</button>
+          <button type="button" className="icon-button" onClick={redo} disabled={!canRedo} aria-label="Redo">↷</button>
+          {toolbarExtras}
+          <button type="button" className="primary-button" onClick={onPersistBoundary} disabled={!validation.ok || !dirty}>Save</button>
         </div>
       </header>
 
       <div className="disk-editor-status" role="status">
-        <span className={validation.ok ? 'valid' : 'invalid'}>{validation.ok ? '✓' : '!'}</span>
-        {validation.ok ? message : validation.errors[0]}
+        <span className={validation.ok && statusKind !== 'error' ? 'valid' : 'invalid'}>{validation.ok && statusKind !== 'error' ? '✓' : '!'}</span>
+        {validation.ok ? statusMessage : validation.errors[0]}
         <span className="disk-editor-shortcut">Ctrl/⌘ + S · Ctrl/⌘ + Z</span>
       </div>
 
-      <main className="visual-editor-workspace">
+      <main className="visual-editor-workspace" onClickCapture={onPersistBoundary}>
         <aside className="entity-browser">
-          <button className={`entity-app${selection.kind === 'app' ? ' selected' : ''}`} onClick={() => setSelection({ kind: 'app' })}><span className="app-avatar">{config.app.name.slice(0, 1)}</span><span><strong>{config.app.name}</strong><small>App settings</small></span></button>
+          <button className={`entity-app${selection.kind === 'app' ? ' selected' : ''}`} onClick={() => onSelection({ kind: 'app' })}><span className="app-avatar">{config.app.name.slice(0, 1)}</span><span><strong>{config.app.name}</strong><small>App settings</small></span></button>
+          <section className="editor-screen-tree">
+            <header><span>Screens</span><button type="button" onClick={() => addEntity('screen')} aria-label="Add screen">+</button></header>
+            <ScreenTree screens={config.screens} activeId={screenId} onSelect={selectScreen} />
+          </section>
           {entityGroups.map((group) => <section key={group.kind}>
             <header><span>{group.label}</span><button type="button" onClick={() => addEntity(group.kind)} aria-label={`Add ${group.kind}`}>+</button></header>
             <div>{group.items.map((item) => <button
               key={item.id}
               className={selection.kind === group.kind && selection.id === item.id ? 'selected' : ''}
               onClick={() => {
-                if (group.kind === 'screen') selectScreen(item.id)
-                else {
-                  if (group.kind === 'component') setScreenId(config.components.find((component) => component.id === item.id)?.screenId ?? screenId)
-                  setSelection({ kind: group.kind, id: item.id })
-                }
+                if (group.kind === 'component') onScreen(config.components.find((component) => component.id === item.id)?.screenId ?? screenId)
+                onSelection({ kind: group.kind, id: item.id })
               }}
             ><span>{item.name}</span><small>{item.id}</small></button>)}</div>
           </section>)}
@@ -458,7 +523,7 @@ export function DiskConfigEditor({ initialText }: { initialText: string }) {
           <header className="authoring-toolbar">
             <div><strong>{screen.name}</strong><span>{screen.width} × {screen.height}{screen.contentHeight && screen.contentHeight > screen.height ? ` · ${screen.contentHeight}px content` : ''}</span></div>
             <div>
-              <label><span>Scenario</span><select value={scenario.id} onChange={(event) => setScenarioId(event.target.value)}>{config.scenarios.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+              <label><span>Scenario</span><select value={scenario.id} onChange={(event) => onScenario(event.target.value)}>{config.scenarios.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
               <button type="button" className={drawMode ? 'primary-button active' : 'secondary-button'} onClick={() => setDrawMode((value) => !value)}>＋ Draw component</button>
             </div>
           </header>
@@ -469,15 +534,18 @@ export function DiskConfigEditor({ initialText }: { initialText: string }) {
             selectedComponentId={selection.kind === 'component' ? selection.id : undefined}
             drawMode={drawMode}
             onCancelDraw={() => setDrawMode(false)}
-            onSelect={(id) => setSelection({ kind: 'component', id })}
-            onCreate={createComponent}
-            onBounds={(id, bounds) => commit((draft) => {
-              const item = draft.components.find((value) => value.id === id)
-              if (item) {
-                Object.assign(item.visual, bounds)
-                delete item.visual.layout
-              }
-            })}
+            onSelect={(id) => onSelection({ kind: 'component', id })}
+            onCreate={(bounds) => { createComponent(bounds); onPersistBoundary() }}
+            onBounds={(id, bounds) => {
+              commit((draft) => {
+                const item = draft.components.find((value) => value.id === id)
+                if (item) {
+                  Object.assign(item.visual, bounds)
+                  delete item.visual.layout
+                }
+              })
+              onPersistBoundary()
+            }}
           />
         </section>
 
@@ -491,6 +559,15 @@ export function DiskConfigEditor({ initialText }: { initialText: string }) {
             onDelete={deleteSelection}
             onDuplicate={duplicateComponent}
             onScreen={selectScreen}
+            workspace={workspace}
+            onAssignOwner={(connectionId, componentId) => mutateWorkspace((draft) => assignConnectionOwner(draft, connectionId, componentId))}
+            onStageAsset={stageEditorAsset}
+            onPersistBoundary={onPersistBoundary}
+            onSelectComponent={(id) => {
+              const component = config.components.find((item) => item.id === id)
+              if (component) onScreen(component.screenId)
+              onSelection({ kind: 'component', id })
+            }}
           />
         </aside>
       </main>
@@ -498,7 +575,7 @@ export function DiskConfigEditor({ initialText }: { initialText: string }) {
   )
 }
 
-function Inspector({ config, selection, screen, commit, rename, onDelete, onDuplicate, onScreen }: {
+function Inspector({ config, selection, screen, commit, rename, onDelete, onDuplicate, onScreen, workspace, onAssignOwner, onStageAsset, onPersistBoundary, onSelectComponent }: {
   config: VisiFlowConfig
   selection: Selection
   screen: AppScreen
@@ -507,6 +584,11 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
   onDelete: () => void
   onDuplicate: () => void
   onScreen: (id: string) => void
+  workspace: ProjectWorkspace
+  onAssignOwner: (connectionId: string, componentId: string) => void
+  onStageAsset: (file: File, kind: 'screen' | 'component', id: string, state?: 'active' | 'inactive') => string
+  onPersistBoundary: () => void
+  onSelectComponent: (id: string) => void
 }) {
   const number = (value: string, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback
   const header = (eyebrow: string, title: string) => <header className="inspector-header"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div>{selection.kind !== 'app' && <div className="inspector-header-actions">{selection.kind === 'component' && <button type="button" className="secondary-button" onClick={onDuplicate}>Duplicate</button>}<button type="button" className="danger-button" onClick={onDelete}>Delete</button></div>}</header>
@@ -520,15 +602,43 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
     <Field label="Initial screen"><select value={config.app.initialScreenId} onChange={(event) => commit((draft) => { draft.app.initialScreenId = event.target.value })}>{config.screens.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Initial scenario"><select value={config.initialScenarioId ?? config.scenarios[0].id} onChange={(event) => commit((draft) => { draft.initialScenarioId = event.target.value })}>{config.scenarios.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Accent"><input type="color" value={config.app.accent ?? '#7c8cff'} onChange={(event) => commit((draft) => { draft.app.accent = event.target.value })} /></Field>
-    <Field label="Description" wide><textarea value={config.app.description} onChange={(event) => commit((draft) => { draft.app.description = event.target.value })} /></Field>
+    <Field label="Project documentation (Markdown)" wide><textarea value={config.app.description} onChange={(event) => commit((draft) => { draft.app.description = event.target.value })} /></Field>
   </div>
 
   if (selection.kind === 'screen') {
     const item = config.screens.find((value) => value.id === selection.id) ?? screen
+    const descendants = new Set(screenDescendants(config.screens, item.id))
+    const parentOptions = config.screens.filter((value) => value.id !== item.id && !descendants.has(value.id))
+    const inheritedGroup = effectiveScreenGroup(config.screens, item.id)
+    const groupSuggestions = [...new Set(config.screens.flatMap((value) => !value.parentId && value.group ? [value.group] : []))].sort()
     return <div className="inspector-form">
       {header('Screen', item.name)}
       <Field label="Name" wide><input value={item.name} onChange={(event) => commit((draft) => { draft.screens.find((value) => value.id === item.id)!.name = event.target.value })} /></Field>
       <Field label="ID" wide><input value={item.id} onChange={(event) => rename('screen', item.id, event.target.value)} /></Field>
+      <Field label="Parent screen" wide><select value={item.parentId ?? ''} onChange={(event) => {
+        const parentId = event.target.value || undefined
+        commit((draft) => {
+          const target = draft.screens.find((value) => value.id === item.id)!
+          if (parentId) {
+            target.parentId = parentId
+            delete target.group
+          } else {
+            delete target.parentId
+            if (inheritedGroup) target.group = inheritedGroup
+          }
+        })
+      }}><option value="">Root screen</option>{parentOptions.map((value) => <option key={value.id} value={value.id}>{value.name}</option>)}</select></Field>
+      {!item.parentId ? <Field label="Group" wide><><input list={`screen-groups-${item.id}`} value={item.group ?? ''} placeholder="Ungrouped" onChange={(event) => commit((draft) => {
+        const target = draft.screens.find((value) => value.id === item.id)!
+        if (event.target.value.trim()) target.group = event.target.value
+        else delete target.group
+      })} /><datalist id={`screen-groups-${item.id}`}>{groupSuggestions.map((group) => <option key={group} value={group} />)}</datalist></></Field>
+        : <div className="editor-note wide">Group inherited from the root screen: <strong>{inheritedGroup ?? 'Ungrouped'}</strong></div>}
+      <Field label="Sibling order"><input type="number" step="1" value={item.order ?? ''} placeholder="Manifest order" onChange={(event) => commit((draft) => {
+        const target = draft.screens.find((value) => value.id === item.id)!
+        if (event.target.value === '') delete target.order
+        else target.order = Math.trunc(number(event.target.value))
+      })} /></Field>
       <Field label="Viewport width"><input type="number" min="1" value={item.width} onChange={(event) => commit((draft) => { draft.screens.find((value) => value.id === item.id)!.width = number(event.target.value, 1) })} /></Field>
       <Field label="Viewport height"><input type="number" min="1" value={item.height} onChange={(event) => commit((draft) => { draft.screens.find((value) => value.id === item.id)!.height = number(event.target.value, 1) })} /></Field>
       <Field label="Content height"><input type="number" min={item.height} value={item.contentHeight ?? item.height} onChange={(event) => commit((draft) => { draft.screens.find((value) => value.id === item.id)!.contentHeight = number(event.target.value, item.height) })} /></Field>
@@ -537,9 +647,9 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
       <Field label="Image position"><input value={item.backgroundPosition ?? ''} placeholder="top center" onChange={(event) => commit((draft) => { draft.screens.find((value) => value.id === item.id)!.backgroundPosition = event.target.value || undefined })} /></Field>
       <Field label="System UI"><select value={String(item.showSystemUi !== false)} onChange={(event) => commit((draft) => { draft.screens.find((value) => value.id === item.id)!.showSystemUi = event.target.value === 'true' })}><option value="true">Show</option><option value="false">Hide</option></select></Field>
       <div className="inspector-action-row wide">
-        <ImageButton label={item.backgroundImage ? 'Replace screenshot' : 'Import screenshot'} onImage={(image) => commit((draft) => {
+        <ImageButton label={item.backgroundImage ? 'Replace screenshot' : 'Import screenshot'} onComplete={onPersistBoundary} onImage={(image) => commit((draft) => {
           const target = draft.screens.find((value) => value.id === item.id)!
-          target.backgroundImage = image.src
+          target.backgroundImage = onStageAsset(image.file, 'screen', item.id)
           target.backgroundSize = '100% auto'
           target.backgroundPosition = 'top center'
           target.contentHeight = Math.max(target.height, scaledContentHeight(target.width, image.width, image.height))
@@ -571,8 +681,8 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
       <Field label="Width"><input type="number" min="1" value={item.visual.width} onChange={(event) => update((value) => { value.visual.width = number(event.target.value, 1); delete value.visual.layout })} /></Field>
       <Field label="Height"><input type="number" min="1" value={item.visual.height} onChange={(event) => update((value) => { value.visual.height = number(event.target.value, 1); delete value.visual.layout })} /></Field>
       <Field label="Tags" wide><input value={(item.tags ?? []).join(', ')} onChange={(event) => update((value) => { value.tags = event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} /></Field>
-      <Field label="Description" wide><textarea value={item.description} onChange={(event) => update((value) => { value.description = event.target.value })} /></Field>
-      {visualMode === 'image' && <div className="inspector-action-row wide"><ImageButton label={item.visual.src ? 'Replace component image' : 'Import component image'} onImage={(image) => update((value) => { value.visual.src = image.src; value.visual.imageFit = 'cover' })} /></div>}
+      <Field label="Documentation (Markdown)" wide><textarea value={item.description} onChange={(event) => update((value) => { value.description = event.target.value })} /></Field>
+      {visualMode === 'image' && <div className="inspector-action-row wide"><ImageButton label={item.visual.src ? 'Replace component image' : 'Import component image'} onComplete={onPersistBoundary} onImage={(image) => update((value) => { value.visual.src = onStageAsset(image.file, 'component', item.id); value.visual.imageFit = 'cover' })} /></div>}
       {visualMode === 'image' && <>
         <Field label="Image fit"><select value={item.visual.imageFit ?? 'cover'} onChange={(event) => update((value) => { value.visual.imageFit = event.target.value as 'cover' | 'contain' | 'fill' })}><option>cover</option><option>contain</option><option>fill</option></select></Field>
         <Field label="Image position"><input value={item.visual.imagePosition ?? 'center'} onChange={(event) => update((value) => { value.visual.imagePosition = event.target.value })} /></Field>
@@ -599,8 +709,8 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
       </details>
       {visualMode !== 'region' && <div className="state-assets wide">
         <strong>State images</strong>
-        <ImageButton label="Active image" onImage={(image) => update((value) => { value.visual.states ??= {}; value.visual.states.active = { ...value.visual.states.active, src: image.src } })} />
-        <ImageButton label="Inactive image" onImage={(image) => update((value) => { value.visual.states ??= {}; value.visual.states.inactive = { ...value.visual.states.inactive, src: image.src } })} />
+        <ImageButton label="Active image" onComplete={onPersistBoundary} onImage={(image) => update((value) => { value.visual.states ??= {}; value.visual.states.active = { ...value.visual.states.active, src: onStageAsset(image.file, 'component', item.id, 'active') } })} />
+        <ImageButton label="Inactive image" onComplete={onPersistBoundary} onImage={(image) => update((value) => { value.visual.states ??= {}; value.visual.states.inactive = { ...value.visual.states.inactive, src: onStageAsset(image.file, 'component', item.id, 'inactive') } })} />
       </div>}
       <details className="advanced-fields wide">
         <summary>Active and inactive style overrides</summary>
@@ -612,6 +722,29 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
           <Field label="Opacity"><input type="number" min="0" max="1" step=".05" value={item.visual.states?.[state]?.opacity ?? ''} onChange={(event) => update((value) => { value.visual.states ??= {}; value.visual.states[state] = { ...value.visual.states[state], opacity: event.target.value ? number(event.target.value) : undefined } })} /></Field>
         </div>)}
       </details>
+      <ComponentCalls config={config} component={item} workspace={workspace} commit={commit} onAssignOwner={onAssignOwner} onSelectComponent={onSelectComponent} />
+    </div>
+  }
+
+  if (selection.kind === 'task') {
+    const item = config.tasks.find((value) => value.id === selection.id)
+    if (!item) return null
+    const update = (mutate: (task: BackgroundTask) => void) => commit((draft) => mutate(draft.tasks.find((value) => value.id === item.id)!))
+    return <div className="inspector-form">
+      {header('Background task', item.name)}
+      <Field label="Name" wide><input value={item.name} onChange={(event) => update((value) => { value.name = event.target.value })} /></Field>
+      <Field label="ID" wide><input value={item.id} onChange={(event) => rename('task', item.id, event.target.value)} /></Field>
+      <Field label="Type"><input value={item.type} onChange={(event) => update((value) => { value.type = event.target.value })} /></Field>
+      <Field label="Scope"><select value={item.scope.kind} onChange={(event) => update((value) => {
+        value.scope = event.target.value === 'app' ? { kind: 'app' } : { kind: 'screen', screenId: screen.id }
+      })}><option value="screen">Current screen</option><option value="app">App-wide</option></select></Field>
+      {item.scope.kind === 'screen' && <Field label="Screen"><select value={item.scope.screenId} onChange={(event) => update((value) => { value.scope = { kind: 'screen', screenId: event.target.value } })}>{config.screens.map((value) => <option key={value.id} value={value.id}>{value.name}</option>)}</select></Field>}
+      <Field label="Default state"><select value={item.defaultState ?? 'active'} onChange={(event) => update((value) => { value.defaultState = event.target.value as ComponentState })}><option>active</option><option>inactive</option></select></Field>
+      <Field label="Trigger"><select value={item.trigger.kind} onChange={(event) => update((value) => { value.trigger.kind = event.target.value as CadenceKind })}>{cadenceKinds.map((value) => <option key={value}>{value}</option>)}</select></Field>
+      <Field label="Trigger label" wide><input value={item.trigger.label} onChange={(event) => update((value) => { value.trigger.label = event.target.value })} /></Field>
+      <Field label="Interval ms"><input type="number" min="1" value={item.trigger.intervalMs ?? ''} onChange={(event) => update((value) => { value.trigger.intervalMs = event.target.value ? number(event.target.value, 1) : undefined })} /></Field>
+      <Field label="Cron"><input value={item.trigger.cron ?? ''} onChange={(event) => update((value) => { value.trigger.cron = event.target.value || undefined })} /></Field>
+      <Field label="Description" wide><textarea value={item.description} onChange={(event) => update((value) => { value.description = event.target.value })} /></Field>
     </div>
   }
 
@@ -637,22 +770,32 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
     const update = (mutate: (connection: Connection) => void) => commit((draft) => mutate(draft.connections.find((value) => value.id === item.id)!))
     const endpointOptions = <>
       <optgroup label="Components">{config.components.map((value) => <option value={`component:${value.id}`} key={`component:${value.id}`}>{value.name}</option>)}</optgroup>
+      <optgroup label="Tasks">{config.tasks.map((value) => <option value={`task:${value.id}`} key={`task:${value.id}`}>{value.name}</option>)}</optgroup>
       <optgroup label="Systems">{config.systems.map((value) => <option value={`system:${value.id}`} key={`system:${value.id}`}>{value.name}</option>)}</optgroup>
     </>
-    const endpoint = (value: string) => { const [kind, id] = value.split(':'); return { kind: kind as 'component' | 'system', id } }
     return <div className="inspector-form">
       {header('Connection', item.name)}
       <Field label="Name" wide><input value={item.name} onChange={(event) => update((value) => { value.name = event.target.value })} /></Field>
       <Field label="ID" wide><input value={item.id} onChange={(event) => rename('connection', item.id, event.target.value)} /></Field>
-      <Field label="Source" wide><select value={`${item.source.kind}:${item.source.id}`} onChange={(event) => update((value) => { value.source = endpoint(event.target.value) })}>{endpointOptions}</select></Field>
-      <Field label="Target" wide><select value={`${item.target.kind}:${item.target.id}`} onChange={(event) => update((value) => { value.target = endpoint(event.target.value) })}>{endpointOptions}</select></Field>
+      <Field label="Source" wide><select value={`${item.source.kind}:${item.source.id}`} onChange={(event) => update((value) => {
+        value.source = endpointFromValue(event.target.value)
+        normalizeConnectionCadence(value)
+        if (value.source.kind !== 'system' && value.target.kind !== 'system') value.protocol = 'Internal'
+      })}>{endpointOptions}</select></Field>
+      <Field label="Target" wide><select value={`${item.target.kind}:${item.target.id}`} onChange={(event) => update((value) => {
+        value.target = endpointFromValue(event.target.value)
+        normalizeConnectionCadence(value)
+        if (value.source.kind !== 'system' && value.target.kind !== 'system') value.protocol = 'Internal'
+      })}>{endpointOptions}</select></Field>
       <Field label="Protocol"><input value={item.protocol} onChange={(event) => update((value) => { value.protocol = event.target.value })} /></Field>
       <Field label="Method"><input value={item.method ?? ''} onChange={(event) => update((value) => { value.method = event.target.value })} /></Field>
       <Field label="Endpoint" wide><input value={item.endpoint ?? ''} onChange={(event) => update((value) => { value.endpoint = event.target.value })} /></Field>
-      <Field label="Cadence"><select value={item.cadence.kind} onChange={(event) => update((value) => { value.cadence.kind = event.target.value as Connection['cadence']['kind'] })}>{['user-event', 'lifecycle', 'scheduled', 'recurring', 'polling', 'push', 'continuous', 'custom'].map((value) => <option key={value}>{value}</option>)}</select></Field>
-      <Field label="Cadence label"><input value={item.cadence.label} onChange={(event) => update((value) => { value.cadence.label = event.target.value })} /></Field>
-      <Field label="Interval ms"><input type="number" min="1" value={item.cadence.intervalMs ?? ''} onChange={(event) => update((value) => { value.cadence.intervalMs = event.target.value ? number(event.target.value, 1) : undefined })} /></Field>
-      <Field label="Cron"><input value={item.cadence.cron ?? ''} onChange={(event) => update((value) => { value.cadence.cron = event.target.value || undefined })} /></Field>
+      {item.cadence ? <>
+        <Field label="Cadence"><select value={item.cadence.kind} onChange={(event) => update((value) => { if (value.cadence) value.cadence.kind = event.target.value as CadenceKind })}>{cadenceKinds.map((value) => <option key={value}>{value}</option>)}</select></Field>
+        <Field label="Cadence label"><input value={item.cadence.label} onChange={(event) => update((value) => { if (value.cadence) value.cadence.label = event.target.value })} /></Field>
+        <Field label="Interval ms"><input type="number" min="1" value={item.cadence.intervalMs ?? ''} onChange={(event) => update((value) => { if (value.cadence) value.cadence.intervalMs = event.target.value ? number(event.target.value, 1) : undefined })} /></Field>
+        <Field label="Cron"><input value={item.cadence.cron ?? ''} onChange={(event) => update((value) => { if (value.cadence) value.cadence.cron = event.target.value || undefined })} /></Field>
+      </> : <div className="editor-note wide">Cadence is inherited from the connected task trigger.</div>}
       <Field label="Description" wide><textarea value={item.description} onChange={(event) => update((value) => { value.description = event.target.value })} /></Field>
     </div>
   }
@@ -667,5 +810,6 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
     <Field label="Screen" wide><select value={item.screenId ?? ''} onChange={(event) => update((value) => { value.screenId = event.target.value || undefined })}><option value="">Use initial screen</option>{config.screens.map((value) => <option key={value.id} value={value.id}>{value.name}</option>)}</select></Field>
     <Field label="Description" wide><textarea value={item.description ?? ''} onChange={(event) => update((value) => { value.description = event.target.value })} /></Field>
     <div className="scenario-states wide"><strong>Component states</strong>{config.components.map((component) => <label key={component.id}><span>{component.name}</span><select value={item.componentStates[component.id] ?? component.defaultState ?? 'active'} onChange={(event) => update((value) => { value.componentStates[component.id] = event.target.value as ComponentState })}><option>active</option><option>inactive</option></select></label>)}</div>
+    <div className="scenario-states wide"><strong>Task states</strong>{config.tasks.map((task) => <label key={task.id}><span>{task.name}</span><select value={item.taskStates[task.id] ?? task.defaultState ?? 'active'} onChange={(event) => update((value) => { value.taskStates[task.id] = event.target.value as ComponentState })}><option>active</option><option>inactive</option></select></label>)}</div>
   </div>
 }

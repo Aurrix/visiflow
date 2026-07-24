@@ -1,36 +1,58 @@
 import type { Selection } from '../model'
-import { connectionsFor, endpointName } from '../model'
-import type { VisiFlowConfig } from '../types'
+import { connectionCadences, connectionsFor, endpointName, taskState } from '../model'
+import type { Scenario, VisiFlowConfig } from '../types'
+import { MarkdownText } from './MarkdownText'
 
 interface DetailPanelProps {
   config: VisiFlowConfig
+  scenario: Scenario
   selection: Selection
   onClose: () => void
 }
 
-export function DetailPanel({ config, selection, onClose }: DetailPanelProps) {
+export function DetailPanel({ config, scenario, selection, onClose }: DetailPanelProps) {
   if (!selection) {
     return (
       <aside className="detail-panel detail-empty" aria-label="Selection details">
-        <div className="empty-orbit" aria-hidden="true"><span /></div>
-        <h2>Select a node</h2>
-        <p>Choose a component or external system to inspect its purpose and request paths.</p>
+        <section className="app-context-summary" aria-label="Application context">
+          <span className="app-avatar">{config.app.name.slice(0, 1)}</span>
+          <p className="eyebrow">{config.app.device} application · {config.app.platform}</p>
+          <h2>{config.app.name}</h2>
+          <MarkdownText className="detail-description">{config.app.description}</MarkdownText>
+        </section>
+        <section className="empty-selection-prompt">
+          <div className="empty-orbit" aria-hidden="true"><span /></div>
+          <h3>Select a node</h3>
+          <p>Choose a component, background task, or external system to inspect its purpose and request paths.</p>
+        </section>
       </aside>
     )
   }
 
+  const selectedTask = selection.kind === 'task'
+    ? config.tasks.find((candidate) => candidate.id === selection.id)
+    : undefined
   const item = selection.kind === 'component'
     ? config.components.find((candidate) => candidate.id === selection.id)
-    : config.systems.find((candidate) => candidate.id === selection.id)
+    : selection.kind === 'task'
+      ? selectedTask
+      : config.systems.find((candidate) => candidate.id === selection.id)
   if (!item) return null
   const connections = connectionsFor(config, selection)
 
   return (
     <aside className="detail-panel" aria-label={`${item.name} details`}>
       <button className="icon-button panel-close" onClick={onClose} aria-label="Close details">×</button>
-      <p className="eyebrow">{selection.kind === 'component' ? item.type : `External · ${item.type}`}</p>
+      <p className="eyebrow">{selection.kind === 'component'
+        ? item.type
+        : selection.kind === 'task' && selectedTask ? `${selectedTask.scope.kind === 'app' ? 'App-wide' : 'Screen'} · ${selectedTask.type}` : `External · ${item.type}`}</p>
       <h2>{item.name}</h2>
-      <p className="detail-description">{item.description}</p>
+      <MarkdownText className="detail-description">{item.description}</MarkdownText>
+      {selectedTask && <div className="task-trigger-detail">
+        <span>Trigger</span>
+        <strong>{selectedTask.trigger.label}</strong>
+        <small>{selectedTask.trigger.kind} · {taskState(selectedTask, scenario)}</small>
+      </div>}
       <div className="detail-stat-row">
         <span><strong>{connections.length}</strong> paths</span>
         <span><strong>{new Set(connections.map((connection) => connection.protocol)).size}</strong> protocols</span>
@@ -51,7 +73,7 @@ export function DetailPanel({ config, selection, onClose }: DetailPanelProps) {
               <p className="counterpart">{outgoing ? 'To' : 'From'} {endpointName(config, counterpart)}</p>
               {connection.endpoint && <code>{connection.endpoint}</code>}
               <p>{connection.description}</p>
-              <span className="cadence">◷ {connection.cadence.label}</span>
+              <span className="cadence">◷ {connectionCadences(config, connection).map((cadence) => cadence.label).join(' · ') || 'Task-managed flow'}</span>
             </article>
           )
         })}

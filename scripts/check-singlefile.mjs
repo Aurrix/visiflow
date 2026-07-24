@@ -2,26 +2,42 @@ import { readFile, readdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 const dist = resolve('dist')
-const files = await readdir(dist, { recursive: true })
-const regularFiles = files.filter((file) => !file.endsWith('/') && !file.endsWith('\\'))
+const files = (await readdir(dist, { recursive: true })).map((file) => file.replaceAll('\\', '/'))
+const requiredFiles = [
+  'index.html',
+  'demo/project.visiflow.md',
+  'demo/screens/login/login-card.visiflow.md',
+  'demo/screens/offers/coupons-card.visiflow.md',
+  'demo/assets/components/login-card.png',
+  'demo/assets/components/coupons.png',
+  'schemas/visiflow-frontmatter.schema.json',
+  'schemas/visiflow-runtime.schema.json',
+]
 
-const expectedFiles = ['config-editor.html', 'index.html']
-const normalizedFiles = regularFiles.map((file) => file.replaceAll('\\', '/')).sort()
-if (JSON.stringify(normalizedFiles) !== JSON.stringify(expectedFiles)) {
-  throw new Error(`Expected ${expectedFiles.join(' and ')} only; found: ${regularFiles.join(', ')}`)
+for (const file of requiredFiles) {
+  if (!files.includes(file)) throw new Error(`Required production artifact is missing: ${file}`)
 }
 
-for (const file of expectedFiles) {
+const htmlFiles = files.filter((file) => file.toLowerCase().endsWith('.html'))
+if (htmlFiles.length !== 1 || htmlFiles[0] !== 'index.html') {
+  throw new Error(`Expected one unified HTML shell; found: ${htmlFiles.join(', ') || 'none'}`)
+}
+
+for (const file of ['index.html']) {
   const html = await readFile(resolve(dist, file), 'utf8')
-  if (file === 'index.html' && !html.includes('id="visiflow-config"')) throw new Error('Viewer embedded configuration block is missing')
-  if (file === 'config-editor.html' && !html.includes('VisiFlow Config Editor')) throw new Error('Config editor marker is missing')
+  if (html.includes('id="visiflow-config"')) throw new Error(`${file} still embeds project configuration`)
   if (/<script\b[^>]*\bsrc=/i.test(html)) throw new Error(`${file} contains an external script`)
   if (/<link\b[^>]*rel=["']stylesheet["']/i.test(html)) throw new Error(`${file} contains an external stylesheet`)
-  if (/\b(?:src|href)=["']\/?assets\//i.test(html)) throw new Error(`${file} references a generated asset`)
+  if (/\b(?:src|href)=["']\/?assets\//i.test(html)) throw new Error(`${file} references a generated application asset`)
 }
 
-const sizes = await Promise.all(expectedFiles.map(async (file) => {
-  const html = await readFile(resolve(dist, file), 'utf8')
-  return `${file}: ${Buffer.byteLength(html).toLocaleString()} bytes`
-}))
-console.log(`Single-file artifacts verified (${sizes.join(', ')}).`)
+const viewer = await readFile(resolve(dist, 'index.html'), 'utf8')
+if (!viewer.includes('demo/project.visiflow.md')) throw new Error('Viewer default project metadata is missing')
+if (!viewer.includes('VisiFlow Project Editor')) throw new Error('Unified editor marker is missing')
+if (!viewer.includes('Open Folder')) throw new Error('Unified folder action is missing')
+if (viewer.includes('Open JSON')) throw new Error('Legacy JSON editor behavior is still bundled')
+
+const sizes = [
+  `index.html: ${Buffer.byteLength(viewer).toLocaleString()} bytes`,
+]
+console.log(`Unified HTML shell and external project artifacts verified (${sizes.join(', ')}).`)

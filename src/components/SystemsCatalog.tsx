@@ -1,31 +1,43 @@
 import type { CSSProperties } from 'react'
 import type { Selection } from '../model'
-import { connectionsFor, sameRef } from '../model'
-import type { VisiFlowConfig } from '../types'
+import { cadenceLabels, connectionMatchesCadence, connectionsFor, sameRef } from '../model'
+import type { CadenceKind, VisiFlowConfig } from '../types'
 
 interface SystemsCatalogProps {
   config: VisiFlowConfig
   selection: Selection
   search: string
-  protocol: string
+  protocols: string[]
+  availableProtocols: string[]
   cadence: string
+  cadences: CadenceKind[]
   onSearch: (value: string) => void
+  onToggleProtocol: (value: string) => void
+  onClearProtocols: () => void
+  onCadence: (value: string) => void
   onSelect: (selection: Selection) => void
 }
 
-export function SystemsCatalog({ config, selection, search, protocol, cadence, onSearch, onSelect }: SystemsCatalogProps) {
+export function SystemsCatalog({ config, selection, search, protocols, availableProtocols, cadence, cadences, onSearch, onToggleProtocol, onClearProtocols, onCadence, onSelect }: SystemsCatalogProps) {
   const filtered = config.systems.filter((system) => {
     const connections = connectionsFor(config, { kind: 'system', id: system.id })
     const haystack = `${system.name} ${system.type} ${system.description}`.toLowerCase()
     return (!search || haystack.includes(search.toLowerCase())) &&
-      (protocol === 'all' || connections.some((connection) => connection.protocol === protocol)) &&
-      (cadence === 'all' || connections.some((connection) => connection.cadence.kind === cadence))
+      (protocols.length === 0 || connections.some((connection) => protocols.includes(connection.protocol))) &&
+      (cadence === 'all' || connections.some((connection) => connectionMatchesCadence(config, connection, cadence)))
   })
 
   return (
     <section className="catalog-view" aria-label="External systems catalog">
       <div className="catalog-heading"><div><p className="eyebrow">Integration inventory</p><h2>External systems</h2></div><p>{filtered.length} of {config.systems.length} systems</p></div>
-      <div className="catalog-filters"><label className="search-field"><span>⌕</span><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search external systems…" aria-label="Search external systems" /></label></div>
+      <div className="catalog-filters">
+        <label className="search-field"><span>⌕</span><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search external systems…" aria-label="Search external systems" /></label>
+        <label><span className="sr-only">Cadence</span><select aria-label="Cadence" value={cadence} onChange={(event) => onCadence(event.target.value)}><option value="all">All cadence</option>{cadences.map((item) => <option value={item} key={item}>{cadenceLabels[item]}</option>)}</select></label>
+        <div className="inventory-protocols" role="group" aria-label="Protocol filters">
+          <button type="button" className={protocols.length === 0 ? 'active' : ''} aria-pressed={protocols.length === 0} onClick={onClearProtocols}>All</button>
+          {availableProtocols.map((item) => <button type="button" className={protocols.includes(item) ? 'active' : ''} aria-pressed={protocols.includes(item)} onClick={() => onToggleProtocol(item)} key={item}>{item}</button>)}
+        </div>
+      </div>
       {filtered.length === 0 ? (
         <div className="catalog-empty"><span>◇</span><h3>No external systems found</h3><p>Adjust the search or filters to widen the result set.</p></div>
       ) : (

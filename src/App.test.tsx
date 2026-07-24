@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import App from './App'
 import { testConfig } from './test-fixture'
@@ -16,30 +16,95 @@ describe('VisiFlow', () => {
     expect(screen.getByText('/payments')).toBeInTheDocument()
   })
 
+  it('uses inline inventory toolbars instead of the floating sidebar in overview views', () => {
+    render(<App result={{ ok: true, data: testConfig }} />)
+    fireEvent.click(screen.getByRole('button', { name: /components/i }))
+    expect(screen.queryByLabelText('View filters')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Search components')).toBeInTheDocument()
+    expect(screen.getByLabelText('Scenario')).toBeInTheDocument()
+    expect(screen.getByLabelText('Screen')).toBeInTheDocument()
+    expect(screen.getByLabelText('Cadence')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Protocol filters' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /systems/i }))
+    expect(screen.queryByLabelText('View filters')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Search external systems')).toBeInTheDocument()
+    expect(screen.getByLabelText('Cadence')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Protocol filters' })).toBeInTheDocument()
+  })
+
+  it('keeps collapsed view controls on the left and filters canvas nodes by search', () => {
+    const { container } = render(<App result={{ ok: true, data: testConfig }} />)
+    const filters = screen.getByLabelText('View filters')
+    expect(filters).toHaveClass('collapsed')
+    expect(screen.queryByLabelText('Scenario')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand view filters' }))
+    expect(filters).toHaveClass('expanded')
+    expect(filters).toContainElement(screen.getByLabelText('Scenario'))
+    expect(filters).toContainElement(screen.getByRole('navigation', { name: 'Screens' }))
+    expect(filters).toContainElement(screen.getByRole('button', { name: 'HTTPS' }))
+    expect(filters).toContainElement(screen.getByLabelText('Cadence'))
+    expect(container.querySelector('.context-bar')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Selection details')).toContainElement(screen.getByLabelText('Application context'))
+    expect(screen.getByRole('heading', { name: 'Select a node' })).toBeInTheDocument()
+
+    const searchInput = screen.getByLabelText('Filter canvas items')
+    fireEvent.change(searchInput, { target: { value: 'Payment API' } })
+    expect(screen.queryByRole('button', { name: /Pay button, active/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Payment API/i })).toBeInTheDocument()
+
+    fireEvent.change(searchInput, { target: { value: 'Pay button' } })
+    expect(screen.getByRole('button', { name: /Pay button, active/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Payment API/i })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear canvas search' }))
+    expect(searchInput).toHaveValue('')
+    expect(screen.getByRole('button', { name: /Payment API/i })).toBeInTheDocument()
+  })
+
+  it('renders grouped, expandable screen hierarchy and switches nested screens', () => {
+    const config = structuredClone(testConfig)
+    config.screens[0].group = 'Checkout'
+    config.screens.push({ id: 'receipt', name: 'Receipt', parentId: 'home', order: 1, width: 390, height: 844 })
+    const { container } = render(<App result={{ ok: true, data: config }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Expand view filters' }))
+    const filters = within(screen.getByLabelText('View filters'))
+    expect(filters.getByRole('button', { name: /Checkout/i })).toBeInTheDocument()
+    fireEvent.click(filters.getByRole('button', { name: 'Expand Home' }))
+    fireEvent.click(filters.getByRole('button', { name: /Receiptreceipt/i }))
+    expect(container.querySelector('.screen-caption strong')).toHaveTextContent('Receipt')
+  })
+
+  it('combines selected protocol toggles with OR semantics', () => {
+    const config = structuredClone(testConfig)
+    config.systems.push({ id: 'analytics', name: 'Analytics API', type: 'Service', description: 'Receives events' })
+    config.connections.push({
+      id: 'analytics-call',
+      name: 'Send analytics',
+      source: { kind: 'component', id: 'button' },
+      target: { kind: 'system', id: 'analytics' },
+      protocol: 'GraphQL',
+      endpoint: '/events',
+      description: 'Sends an event.',
+      cadence: { kind: 'user-event', label: 'On click' },
+    })
+    render(<App result={{ ok: true, data: config }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Expand view filters' }))
+    const filters = within(screen.getByLabelText('View filters'))
+
+    fireEvent.click(filters.getByRole('button', { name: 'HTTPS' }))
+    expect(screen.getByRole('button', { name: /Payment API/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Analytics API/i })).not.toBeInTheDocument()
+
+    fireEvent.click(filters.getByRole('button', { name: 'GraphQL' }))
+    expect(screen.getByRole('button', { name: /Payment API/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Analytics API/i })).toBeInTheDocument()
+  })
+
   it('renders readable configuration errors', () => {
     render(<App result={{ ok: false, errors: ['screens.0.id: Duplicate id'] }} />)
     expect(screen.getByRole('heading', { name: /could not start/i })).toBeInTheDocument()
     expect(screen.getByText(/screens.0.id/)).toBeInTheDocument()
-  })
-
-  it('applies a pasted JSON configuration to the live preview', () => {
-    const updated = structuredClone(testConfig)
-    updated.app.name = 'Edited preview'
-    render(<App result={{ ok: true, data: testConfig }} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Edit JSON configuration' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'JSON configuration' }), { target: { value: JSON.stringify(updated) } })
-    fireEvent.click(screen.getByRole('button', { name: 'Apply configuration' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getAllByText('Edited preview').length).toBeGreaterThan(0)
-  })
-
-  it('keeps invalid pasted JSON in the editor and reports the error', () => {
-    render(<App result={{ ok: true, data: testConfig }} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Edit JSON configuration' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'JSON configuration' }), { target: { value: '{invalid' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Apply configuration' }))
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('Invalid JSON')
   })
 
   it('renders scrollable screens and image layers on any component kind', () => {
@@ -75,5 +140,92 @@ describe('VisiFlow', () => {
     fireEvent.click(screen.getByRole('button', { name: /components/i }))
     expect(container.querySelector('.component-preview-crop')).toHaveAttribute('src', inlinePng)
     expect(container.querySelector('.hotspot-label')).not.toBeInTheDocument()
+  })
+
+  it('renders screen and app-wide tasks below the phone and exposes task details', () => {
+    const config = structuredClone(testConfig)
+    config.screens.push({ id: 'other', name: 'Other', width: 390, height: 844 })
+    config.tasks = [
+      {
+        id: 'screen-sync',
+        name: 'Screen sync',
+        type: 'Data refresh',
+        description: 'Refreshes this screen.',
+        scope: { kind: 'screen', screenId: 'home' },
+        trigger: { kind: 'polling', label: 'Every minute', intervalMs: 60000 },
+      },
+      {
+        id: 'global-sync',
+        name: 'Global sync',
+        type: 'App worker',
+        description: 'Runs throughout the app.',
+        scope: { kind: 'app' },
+        trigger: { kind: 'scheduled', label: 'Every hour' },
+      },
+      {
+        id: 'other-sync',
+        name: 'Other sync',
+        type: 'Data refresh',
+        description: 'Refreshes the other screen.',
+        scope: { kind: 'screen', screenId: 'other' },
+        trigger: { kind: 'lifecycle', label: 'On open' },
+      },
+    ]
+    config.scenarios[0].taskStates['global-sync'] = 'inactive'
+    config.connections.push(
+      {
+        id: 'start-screen-sync',
+        name: 'Start screen sync',
+        source: { kind: 'component', id: 'button' },
+        target: { kind: 'task', id: 'screen-sync' },
+        protocol: 'Internal',
+        description: 'Starts the refresh.',
+      },
+      {
+        id: 'run-screen-sync',
+        name: 'Run screen sync',
+        source: { kind: 'task', id: 'screen-sync' },
+        target: { kind: 'system', id: 'api' },
+        protocol: 'HTTPS',
+        description: 'Loads data.',
+      },
+      {
+        id: 'run-global-sync',
+        name: 'Run global sync',
+        source: { kind: 'task', id: 'global-sync' },
+        target: { kind: 'system', id: 'api' },
+        protocol: 'HTTPS',
+        description: 'Loads shared data.',
+      },
+    )
+    const { container } = render(<App result={{ ok: true, data: config }} />)
+
+    expect(screen.getByLabelText('App runtime tasks')).toBeInTheDocument()
+    expect(container.querySelector('.device-frame .runtime-rail')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Screen sync, current screen, active/i })).toBeInTheDocument()
+    const globalTask = screen.getByRole('button', { name: /Global sync, app-wide, inactive/i })
+    expect(globalTask).toHaveClass('app-wide')
+    expect(screen.queryByText('Other sync')).not.toBeInTheDocument()
+
+    fireEvent.click(globalTask)
+    expect(screen.getByLabelText('Global sync details')).toHaveTextContent('Every hour')
+    expect(screen.getByLabelText('Global sync details')).toHaveTextContent('App-wide')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand view filters' }))
+    fireEvent.click(within(screen.getByLabelText('View filters')).getByRole('button', { name: /Other/i }))
+    expect(screen.getByRole('button', { name: /Other sync, current screen, active/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Global sync, app-wide, inactive/i })).toBeInTheDocument()
+    expect(screen.queryByText('Screen sync')).not.toBeInTheDocument()
+  })
+
+  it('renders component Markdown without enabling raw HTML', () => {
+    const config = structuredClone(testConfig)
+    config.components[0].description = 'Uses **safe Markdown**.<script>unsafe()</script>'
+    const { container } = render(<App result={{ ok: true, data: config }} />)
+    fireEvent.click(screen.getByRole('button', { name: /components/i }))
+    fireEvent.click(screen.getByRole('heading', { name: 'Pay button' }))
+    expect(screen.getByText('safe Markdown')).toBeInTheDocument()
+    expect(container.querySelector('.detail-description script')).not.toBeInTheDocument()
+    expect(screen.queryByText('unsafe()')).not.toBeInTheDocument()
   })
 })

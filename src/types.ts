@@ -52,6 +52,9 @@ export interface AppComponent {
 export interface AppScreen {
   id: string
   name: string
+  parentId?: string
+  group?: string
+  order?: number
   width: number
   height: number
   contentHeight?: number
@@ -72,8 +75,22 @@ export interface ExternalSystem {
   placement?: 'left' | 'right'
 }
 
+export type TaskScope =
+  | { kind: 'app' }
+  | { kind: 'screen'; screenId: string }
+
+export interface BackgroundTask {
+  id: string
+  name: string
+  type: string
+  description: string
+  scope: TaskScope
+  trigger: Cadence
+  defaultState?: ComponentState
+}
+
 export interface EndpointRef {
-  kind: 'component' | 'system'
+  kind: 'component' | 'task' | 'system'
   id: string
 }
 
@@ -103,7 +120,7 @@ export interface Connection {
   method?: string
   endpoint?: string
   description: string
-  cadence: Cadence
+  cadence?: Cadence
 }
 
 export interface Scenario {
@@ -112,10 +129,11 @@ export interface Scenario {
   description?: string
   screenId?: string
   componentStates: Record<string, ComponentState>
+  taskStates: Record<string, ComponentState>
 }
 
 export interface VisiFlowConfig {
-  schemaVersion: 1
+  schemaVersion: 2
   app: {
     id: string
     name: string
@@ -127,8 +145,74 @@ export interface VisiFlowConfig {
   }
   screens: AppScreen[]
   components: AppComponent[]
+  tasks: BackgroundTask[]
   systems: ExternalSystem[]
   connections: Connection[]
   scenarios: Scenario[]
   initialScenarioId?: string
+}
+
+export type CallDirection = 'outgoing' | 'incoming'
+
+export interface ComponentCall {
+  id: string
+  name: string
+  direction: CallDirection
+  peer: EndpointRef
+  protocol: string
+  method?: string
+  endpoint?: string
+  description: string
+  cadence?: Cadence
+}
+
+export interface ProjectManifestMeta {
+  visiflow: 2
+  kind: 'project'
+  app: Omit<VisiFlowConfig['app'], 'description'>
+  screens: AppScreen[]
+  tasks: BackgroundTask[]
+  systems: ExternalSystem[]
+  scenarios: Scenario[]
+  initialScenarioId?: string
+  componentFiles: string[]
+  connections: Connection[]
+}
+
+export interface ComponentDocumentMeta {
+  visiflow: 2
+  kind: 'component'
+  id: string
+  screenId: string
+  name: string
+  type: string
+  tags?: string[]
+  defaultState?: ComponentState
+  visual: ComponentVisual
+  calls: ComponentCall[]
+}
+
+export interface ComponentDocument {
+  path: string
+  meta: ComponentDocumentMeta
+  body: string
+}
+
+export interface ProjectWorkspace {
+  mode: 'directory' | 'http'
+  name: string
+  manifestPath: string
+  manifest: ProjectManifestMeta
+  projectBody: string
+  components: Map<string, ComponentDocument>
+  connectionOwners: Map<string, string>
+  directoryHandle?: unknown
+  pendingAssets: Map<string, File>
+  obsoletePaths: Set<string>
+}
+
+export interface LoadedProject {
+  config: VisiFlowConfig
+  workspace: ProjectWorkspace
+  assetSources: Map<string, string>
 }

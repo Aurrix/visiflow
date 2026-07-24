@@ -1,0 +1,724 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visiflow.dev/schemas/visiflow-runtime.schema.json",
+  "title": "VisiFlow assembled runtime configuration",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 2
+    },
+    "app": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "device": {
+          "type": "string",
+          "enum": [
+            "ios",
+            "android",
+            "web",
+            "desktop",
+            "custom"
+          ]
+        },
+        "initialScreenId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "accent": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "platform",
+        "description",
+        "device",
+        "initialScreenId"
+      ],
+      "additionalProperties": false
+    },
+    "screens": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "group": {
+            "type": "string",
+            "minLength": 1
+          },
+          "order": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "width": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "height": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "contentHeight": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "background": {
+            "type": "string"
+          },
+          "backgroundImage": {
+            "type": "string"
+          },
+          "backgroundSize": {
+            "type": "string"
+          },
+          "backgroundPosition": {
+            "type": "string"
+          },
+          "showSystemUi": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "width",
+          "height"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "screenId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultState": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ]
+          },
+          "visual": {
+            "type": "object",
+            "properties": {
+              "background": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string"
+              },
+              "borderColor": {
+                "type": "string"
+              },
+              "borderRadius": {
+                "type": "number",
+                "minimum": 0
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "text": {
+                "type": "string"
+              },
+              "src": {
+                "type": "string"
+              },
+              "imageFit": {
+                "type": "string",
+                "enum": [
+                  "cover",
+                  "contain",
+                  "fill"
+                ]
+              },
+              "imagePosition": {
+                "type": "string"
+              },
+              "imageOpacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "hotspot",
+                  "container",
+                  "text",
+                  "button",
+                  "input",
+                  "badge",
+                  "image"
+                ]
+              },
+              "x": {
+                "type": "number",
+                "minimum": 0
+              },
+              "y": {
+                "type": "number",
+                "minimum": 0
+              },
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "layout": {
+                "type": "object",
+                "properties": {
+                  "horizontal": {
+                    "type": "string",
+                    "enum": [
+                      "absolute",
+                      "start",
+                      "center",
+                      "end"
+                    ]
+                  },
+                  "row": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "order": {
+                    "type": "number"
+                  },
+                  "justify": {
+                    "type": "string",
+                    "enum": [
+                      "start",
+                      "center",
+                      "end",
+                      "space-between"
+                    ]
+                  },
+                  "gap": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              },
+              "states": {
+                "type": "object",
+                "properties": {
+                  "active": {
+                    "type": "object",
+                    "properties": {
+                      "background": {
+                        "type": "string"
+                      },
+                      "color": {
+                        "type": "string"
+                      },
+                      "borderColor": {
+                        "type": "string"
+                      },
+                      "borderRadius": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "src": {
+                        "type": "string"
+                      },
+                      "imageFit": {
+                        "type": "string",
+                        "enum": [
+                          "cover",
+                          "contain",
+                          "fill"
+                        ]
+                      },
+                      "imagePosition": {
+                        "type": "string"
+                      },
+                      "imageOpacity": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "inactive": {
+                    "type": "object",
+                    "properties": {
+                      "background": {
+                        "type": "string"
+                      },
+                      "color": {
+                        "type": "string"
+                      },
+                      "borderColor": {
+                        "type": "string"
+                      },
+                      "borderRadius": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "src": {
+                        "type": "string"
+                      },
+                      "imageFit": {
+                        "type": "string",
+                        "enum": [
+                          "cover",
+                          "contain",
+                          "fill"
+                        ]
+                      },
+                      "imagePosition": {
+                        "type": "string"
+                      },
+                      "imageOpacity": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "kind",
+              "x",
+              "y",
+              "width",
+              "height"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "screenId",
+          "name",
+          "type",
+          "description",
+          "visual"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "scope": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "app"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "screen"
+                  },
+                  "screenId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "screenId"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "trigger": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "user-event",
+                  "lifecycle",
+                  "scheduled",
+                  "recurring",
+                  "polling",
+                  "push",
+                  "continuous",
+                  "custom"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "intervalMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "cron": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "defaultState": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "description",
+          "scope",
+          "trigger"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "systems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "placement": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "connections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "component",
+                  "task",
+                  "system"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "component",
+                  "task",
+                  "system"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "protocol": {
+            "type": "string",
+            "minLength": 1
+          },
+          "method": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "cadence": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "user-event",
+                  "lifecycle",
+                  "scheduled",
+                  "recurring",
+                  "polling",
+                  "push",
+                  "continuous",
+                  "custom"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "intervalMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "cron": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "source",
+          "target",
+          "protocol",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "scenarios": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "screenId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "componentStates": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "active",
+                "inactive"
+              ]
+            }
+          },
+          "taskStates": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "active",
+                "inactive"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "componentStates",
+          "taskStates"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "initialScenarioId": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "app",
+    "screens",
+    "components",
+    "tasks",
+    "systems",
+    "connections",
+    "scenarios"
+  ],
+  "additionalProperties": false
+}

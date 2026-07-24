@@ -1,7 +1,8 @@
 import type { Selection } from '../model'
-import { componentState, connectionsFor, endpointName, sameRef } from '../model'
-import type { Scenario, VisiFlowConfig } from '../types'
+import { cadenceLabels, componentState, connectionMatchesCadence, connectionsFor, endpointName, sameRef } from '../model'
+import type { CadenceKind, Scenario, VisiFlowConfig } from '../types'
 import { ComponentPreview } from './ComponentPreview'
+import { plainMarkdownExcerpt } from '../markdown-utils'
 
 interface CatalogProps {
   config: VisiFlowConfig
@@ -9,12 +10,16 @@ interface CatalogProps {
   selection: Selection
   search: string
   screen: string
-  protocol: string
+  protocols: string[]
+  availableProtocols: string[]
   cadence: string
+  cadences: CadenceKind[]
   state: string
   onSearch: (value: string) => void
   onScreen: (value: string) => void
-  onProtocol: (value: string) => void
+  onScenario: (value: string) => void
+  onToggleProtocol: (value: string) => void
+  onClearProtocols: () => void
   onCadence: (value: string) => void
   onState: (value: string) => void
   onSelect: (selection: Selection) => void
@@ -29,8 +34,8 @@ export function Catalog(props: CatalogProps) {
     return (!props.search || haystack.includes(props.search.toLowerCase())) &&
       (props.screen === 'all' || component.screenId === props.screen) &&
       (props.state === 'all' || componentState(component, scenario) === props.state) &&
-      (props.protocol === 'all' || connections.some((connection) => connection.protocol === props.protocol)) &&
-      (props.cadence === 'all' || connections.some((connection) => connection.cadence.kind === props.cadence))
+      (props.protocols.length === 0 || connections.some((connection) => props.protocols.includes(connection.protocol))) &&
+      (props.cadence === 'all' || connections.some((connection) => connectionMatchesCadence(config, connection, props.cadence)))
   })
 
   return (
@@ -41,8 +46,14 @@ export function Catalog(props: CatalogProps) {
       </div>
       <div className="catalog-filters">
         <label className="search-field"><span>⌕</span><input value={props.search} onChange={(event) => props.onSearch(event.target.value)} placeholder="Search components…" aria-label="Search components" /></label>
-        <label><span className="sr-only">Screen</span><select value={props.screen} onChange={(event) => props.onScreen(event.target.value)}><option value="all">All screens</option>{config.screens.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label><span className="sr-only">Scenario</span><select aria-label="Scenario" value={scenario.id} onChange={(event) => props.onScenario(event.target.value)}>{config.scenarios.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label><span className="sr-only">Screen</span><select aria-label="Screen" value={props.screen} onChange={(event) => props.onScreen(event.target.value)}><option value="all">All screens</option>{config.screens.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label><span className="sr-only">State</span><select value={props.state} onChange={(event) => props.onState(event.target.value)}><option value="all">Any state</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+        <label><span className="sr-only">Cadence</span><select aria-label="Cadence" value={props.cadence} onChange={(event) => props.onCadence(event.target.value)}><option value="all">All cadence</option>{props.cadences.map((item) => <option value={item} key={item}>{cadenceLabels[item]}</option>)}</select></label>
+        <div className="inventory-protocols" role="group" aria-label="Protocol filters">
+          <button type="button" className={props.protocols.length === 0 ? 'active' : ''} aria-pressed={props.protocols.length === 0} onClick={props.onClearProtocols}>All</button>
+          {props.availableProtocols.map((item) => <button type="button" className={props.protocols.includes(item) ? 'active' : ''} aria-pressed={props.protocols.includes(item)} onClick={() => props.onToggleProtocol(item)} key={item}>{item}</button>)}
+        </div>
       </div>
       {filtered.length === 0 ? (
         <div className="catalog-empty"><span>⌕</span><h3>No components found</h3><p>Adjust the search or filters to widen the result set.</p></div>
@@ -65,7 +76,7 @@ export function Catalog(props: CatalogProps) {
                 <ComponentPreview component={component} screen={config.screens.find((item) => item.id === component.screenId)} scenario={scenario} />
                 <p className="card-kicker">{screen?.name} · {component.type}</p>
                 <h3>{component.name}</h3>
-                <p className="card-description">{component.description}</p>
+                <p className="card-description">{plainMarkdownExcerpt(component.description)}</p>
                 <div className="tag-row">{(component.tags ?? []).map((tag) => <span key={tag}>{tag}</span>)}</div>
                 <div className="card-stats">
                   <span><strong>{outgoing.length}</strong> outgoing</span>

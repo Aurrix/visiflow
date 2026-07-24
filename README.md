@@ -1,152 +1,74 @@
 # VisiFlow
 
-VisiFlow is a self-contained application request atlas. It reconstructs app screens from images and declarative UI regions, maps components to external systems, and documents protocols, endpoints, triggers, schedules, polling, and push behavior.
+VisiFlow is a browser-based application request atlas. It reconstructs app screens from screenshots or declarative components, separates background tasks into an app-runtime rail, maps calls to external systems, and documents protocols, endpoints, schedules, polling, push behavior, and scenario states.
 
-[Open VisiFlow on GitHub Pages](https://aurrix.github.io/visiflow/)
+[Open the hosted demo](https://aurrix.github.io/visiflow/)
 
 ## Run and build
 
 ```bash
+npm install
 npm run dev
 npm run verify
 ```
 
-`npm run build` produces two portable files:
+`npm run build` produces:
 
-- `dist/index.html` is the read-only visualization artifact.
-- `dist/config-editor.html` opens, validates, previews, and saves VisiFlow JSON files on disk.
+- `dist/index.html`: the unified viewer and visual folder editor.
+- `dist/demo/`: the external Markdown demo project.
+- `dist/schemas/`: generated JSON Schemas.
 
-Both files are self-contained, can be opened directly with `file://`, and do not require a web server.
+The HTML file contains application code but no embedded project configuration. When hosted, it loads `demo/project.visiflow.md` read-only. Open a folder to enable View/Edit switching and filesystem persistence.
 
-### Edit configuration files on disk
+## Markdown projects
 
-Open `dist/config-editor.html` in a Chromium-based browser, then choose **Open JSON**. The editor provides structured forms for the entire configuration and a simple device canvas for drawing, selecting, moving, and resizing components. Use screen regions over full screenshots, individually embedded component images, schema-rendered UI, or mix all three approaches on one screen.
+Projects use YAML front matter plus rendered Markdown documentation:
 
-Imported screenshots and component images are embedded into the saved JSON. Long screenshots are scaled to the screen's logical width and automatically set `contentHeight`. Screenshot regions use the full screen image in the app map and derive their catalog thumbnails from their bounds without storing duplicate crops.
-
-**Save** writes back to the selected file, while **Save as** chooses another destination. `Ctrl/⌘ + S` saves and `Ctrl/⌘ + Z` undoes the most recent editor change.
-
-Browsers without the File System Access API use a normal file upload for opening and download a new JSON file when saving. This fallback cannot overwrite the original file in place.
-
-## Supply production data
-
-A complete, ready-to-customize configuration is available at [docs/visiflow-config.example.json](docs/visiflow-config.example.json). Copy its JSON into the production configuration block, then replace the example IDs, screens, components, systems, and connections with your project data.
-
-Open `dist/index.html`, find the configuration block, and replace its contents:
-
-```html
-<script id="visiflow-config" type="application/json">
-{
-  "schemaVersion": 1,
-  "app": {
-    "id": "my-app",
-    "name": "My App",
-    "platform": "Android",
-    "description": "Request map for My App",
-    "device": "android",
-    "initialScreenId": "home"
-  },
-  "screens": [{ "id": "home", "name": "Home", "width": 390, "height": 844 }],
-  "components": [],
-  "systems": [],
-  "connections": [],
-  "scenarios": [{ "id": "default", "name": "Default", "componentStates": {} }]
-}
-</script>
+```text
+project.visiflow.md
+screens/
+  home/
+    balance-card.visiflow.md
+assets/
+  screens/
+  components/
 ```
 
-The block contains data, not executable JavaScript. If a JSON string contains `</script>`, write it as `<\/script>` so the browser does not end the block early.
+The v2 root manifest owns app-wide settings, screens, background tasks, systems, scenarios, and the hosted component-file list. Each nested component document owns its metadata, visual definition, documentation body, and calls.
 
-## Configuration reference
+See [the complete project format](docs/project-format.md) and [the runnable demo](public/demo/project.visiflow.md).
 
-- `app`: identity, description, arbitrary platform label, device preset (`ios`, `android`, `web`, `desktop`, or `custom`), initial screen, and optional accent color.
-- `screens`: `id`, `name`, native viewport `width`/`height`, optional scrollable `contentHeight`, CSS `background` or `backgroundImage`, image sizing/position, and `showSystemUi`.
-- `components`: screen assignment, metadata, tags, default state, and a visual definition.
-- `systems`: external services with metadata, color/icon, and optional left/right placement.
-- `connections`: source and target references, protocol, optional method and endpoint, description, and cadence.
-- `scenarios`: named maps of component IDs to `active` or `inactive`, plus an optional screen to open.
+## Viewer loading
 
-Component visuals use design-space `x`, `y`, `width`, and `height` values. Supported kinds are `hotspot`, `container`, `text`, `button`, `input`, `badge`, and `image`. Common style properties include `background`, `color`, `borderColor`, `borderRadius`, `opacity`, and `text`. Put overrides under `states.active` or `states.inactive`.
+- Hosted default: `demo/project.visiflow.md`
+- Hosted override: `index.html?project=path/to/project.visiflow.md`
+- Local folders: **Open Folder**
 
-At 100% zoom, the device is automatically fitted to the available map workspace. If components extend below the screen viewport, the app screen becomes scrollable automatically. Set `contentHeight` explicitly when matching a known long screenshot or design canvas.
+Folder loading recursively discovers case-insensitive `*.visiflow.md` files and requires exactly one `kind: project` manifest.
 
-### Screenshots and component images
+## Visual editor
 
-Images can be embedded directly in the JSON as standard `data:image/<format>;base64,...` URLs. They remain entirely inline when using the live configuration editor or the generated single-file build.
+Open `dist/index.html` in a Chromium-based browser, select **Open Folder**, then switch to **Edit**. The viewer and editor share one in-memory project session, including the active screen, scenario, and compatible selection. The editor can:
 
-Use a screen image as the app canvas while retaining interactive component hotspots:
+- Draw, move, resize, duplicate, and delete components.
+- Mix screenshot regions, relative component images, and schema-rendered UI.
+- Edit app, screen, background-task, system, scenario, connection, state, and layout metadata.
+- Edit protocols, methods, endpoints, directions, peers, and cadence directly inside a component.
+- Import screenshots and active/inactive assets into project-relative asset folders.
+- Automatically save valid changes at completed interaction boundaries.
+- Undo and redo session changes, including changes already written by autosave.
 
-```json
-{
-  "id": "checkout",
-  "name": "Checkout",
-  "width": 390,
-  "height": 844,
-  "contentHeight": 1400,
-  "backgroundImage": "data:image/png;base64,REPLACE_WITH_SCREENSHOT_DATA",
-  "backgroundSize": "100% auto",
-  "backgroundPosition": "top center",
-  "showSystemUi": false
-}
+Component Markdown bodies are safely rendered without enabling raw HTML. Compact cards use plain-text excerpts.
+
+## Schemas
+
+```bash
+npm run schema
 ```
 
-Every visual kind can also contain an image layer, so cards and buttons can use real exported assets while retaining text, state, request, and selection behavior:
+This generates Draft 2020-12 schemas:
 
-```json
-{
-  "kind": "button",
-  "x": 24,
-  "y": 520,
-  "width": 342,
-  "height": 56,
-  "text": "Continue",
-  "src": "data:image/png;base64,REPLACE_WITH_COMPONENT_IMAGE",
-  "imageFit": "cover",
-  "imagePosition": "center",
-  "imageOpacity": 1,
-  "states": {
-    "inactive": {
-      "src": "data:image/png;base64,REPLACE_WITH_DISABLED_IMAGE",
-      "imageOpacity": 0.55
-    }
-  }
-}
-```
+- `schemas/visiflow-frontmatter.schema.json`
+- `schemas/visiflow-runtime.schema.json`
 
-For image-only components, use `kind: "image"`. For a complete screenshot with clickable regions, use `kind: "hotspot"` components over the screen background.
-
-### Component layout
-
-Coordinates remain the default, but `visual.layout` can align components without manually calculating `x` values. Center a component horizontally while keeping its configured `y`, width, and height:
-
-```json
-"layout": { "horizontal": "center" }
-```
-
-Place multiple components on the same line by giving them the same row name. The row uses the lowest configured `y` value from its members:
-
-```json
-{
-  "kind": "button",
-  "x": 0,
-  "y": 300,
-  "width": 160,
-  "height": 52,
-  "layout": {
-    "row": "account-actions",
-    "order": 1,
-    "justify": "center",
-    "gap": 12
-  }
-}
-```
-
-Other row members only need the same `row` plus their `order`. `justify` accepts `start`, `center`, `end`, or `space-between`. Non-row horizontal alignment accepts `absolute`, `start`, `center`, or `end`. Existing configurations without `layout` keep their absolute positioning.
-
-Connection endpoints have the shape `{ "kind": "component" | "system", "id": "..." }`. Cadence kinds are `user-event`, `lifecycle`, `scheduled`, `recurring`, `polling`, `push`, `continuous`, and `custom`; every cadence has a readable `label` and can include `intervalMs` or `cron`.
-
-Images may use data URLs, relative URLs, or HTTPS URLs. Use data URLs inside the JSON when the final HTML must remain completely portable and offline. `imageFit` accepts `cover`, `contain`, or `fill`; `imagePosition` accepts a CSS object-position value, and `imageOpacity` ranges from `0` to `1`.
-
-Files placed in `docs/assets/` can be referenced with project-relative paths such as `docs/assets/login_card.png`. Vite discovers these files during the build: development uses the local asset, while the production build converts it into an inlined URL inside `dist/index.html`. Rebuild after adding or changing an asset.
-
-Invalid JSON and invalid references are shown as an in-app diagnostic report with exact property paths.
+JSON Schema describes the parsed metadata/runtime shapes. Runtime project assembly additionally validates duplicate IDs, paths, bounds, and cross-file references.

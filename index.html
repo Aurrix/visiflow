@@ -4,107 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#090b11" />
+    <meta name="visiflow-project" content="demo/project.visiflow.md" />
     <title>VisiFlow · Application Request Atlas</title>
   </head>
   <body>
     <div id="root"></div>
-    <script id="visiflow-config" type="application/json">
-    {
-      "schemaVersion": 1,
-      "app": {
-        "id": "orbit-mobile",
-        "name": "Orbit Pay",
-        "platform": "iOS · Production",
-        "description": "A mobile wallet mapped across user actions, background sync, and external services.",
-        "device": "ios",
-        "initialScreenId": "home",
-        "accent": "#7c8cff"
-      },
-      "screens": [
-        { "id": "home", "name": "Wallet home", "width": 390, "height": 844, "background": "linear-gradient(160deg, #191e2c 0%, #10131d 54%, #0c0f16 100%)" },
-        { "id": "activity", "name": "Activity", "width": 390, "height": 844, "contentHeight": 1120, "background": "linear-gradient(180deg, #161b28 0%, #0d1018 100%)" },
-        { "id": "image-components", "name": "Image components", "width": 390, "height": 844, "background": "#f5f5f5", "showSystemUi": false }
-      ],
-      "components": [
-        {
-          "id": "welcome-header", "screenId": "home", "name": "Welcome header", "type": "Text", "description": "Greets the authenticated user and refreshes lightweight profile data when the app resumes.", "tags": ["profile", "lifecycle"],
-          "visual": { "kind": "text", "x": 22, "y": 55, "width": 345, "height": 48, "text": "Good evening, Alex", "color": "#f4f6fb" }
-        },
-        {
-          "id": "balance-card", "screenId": "home", "name": "Balance card", "type": "Summary", "description": "Displays the latest available balance and account synchronization status.", "tags": ["balance", "sensitive"],
-          "visual": { "kind": "container", "x": 20, "y": 120, "width": 350, "height": 142, "text": "AVAILABLE BALANCE\n$12,840.52", "background": "linear-gradient(135deg, #5969e8, #8a65d8)", "color": "#ffffff", "borderRadius": 22, "states": { "inactive": { "text": "BALANCE UNAVAILABLE\n—", "background": "#323747", "opacity": 0.72 } } }
-        },
-        {
-          "id": "send-action", "screenId": "home", "name": "Send money", "type": "Action", "description": "Starts a payment authorization flow and submits the signed transfer to the payments API.", "tags": ["payment", "user-action"],
-          "visual": { "kind": "button", "x": 20, "y": 285, "width": 105, "height": 54, "layout": { "row": "quick-actions", "order": 1, "justify": "center", "gap": 17 }, "text": "↗  Send", "background": "#202635", "color": "#eef1f8", "borderColor": "#30384b", "borderRadius": 15, "states": { "inactive": { "text": "Send locked", "opacity": 0.5 } } }
-        },
-        {
-          "id": "scan-action", "screenId": "home", "name": "Scan to pay", "type": "Action", "description": "Opens the camera scanner and resolves QR payment payloads through the gateway.", "tags": ["camera", "payment"],
-          "visual": { "kind": "button", "x": 142, "y": 285, "width": 105, "height": 54, "layout": { "row": "quick-actions", "order": 2 }, "text": "⌗  Scan", "background": "#202635", "color": "#eef1f8", "borderColor": "#30384b", "borderRadius": 15 }
-        },
-        {
-          "id": "rewards-badge", "screenId": "home", "name": "Rewards badge", "type": "Badge", "description": "Shows rewards points cached locally and refreshed after qualifying transactions.", "tags": ["rewards", "cache"],
-          "visual": { "kind": "badge", "x": 264, "y": 285, "width": 106, "height": 54, "layout": { "row": "quick-actions", "order": 3 }, "text": "✦  2,480 pts", "background": "#24212c", "color": "#d9b56d", "borderColor": "#443923", "borderRadius": 15 }
-        },
-        {
-          "id": "recent-activity", "screenId": "home", "name": "Recent activity", "type": "Feed", "description": "Polls for recent account events while the app is foregrounded and displays cached results offline.", "tags": ["transactions", "polling"],
-          "visual": { "kind": "container", "x": 20, "y": 370, "width": 350, "height": 320, "text": "RECENT ACTIVITY\n\nCoffee House                 − $6.40\nSalary deposit          + $4,250.00\nCloud Storage               − $12.00", "background": "#171b25", "color": "#dce1ed", "borderColor": "#292f3e", "borderRadius": 20, "states": { "inactive": { "text": "RECENT ACTIVITY\n\nOffline — showing cached items", "opacity": 0.6 } } }
-        },
-        {
-          "id": "activity-search", "screenId": "activity", "name": "Activity search", "type": "Input", "description": "Filters cached transactions locally without issuing a remote request.", "tags": ["local", "search"],
-          "visual": { "kind": "input", "x": 20, "y": 75, "width": 350, "height": 48, "text": "Search transactions", "background": "#202532", "color": "#8f98aa", "borderColor": "#2c3344", "borderRadius": 14 }
-        },
-        {
-          "id": "activity-feed", "screenId": "activity", "name": "Transaction history", "type": "Feed", "description": "Loads paginated transaction history and receives real-time settlement updates.", "tags": ["transactions", "pagination", "realtime"],
-          "visual": { "kind": "container", "x": 20, "y": 150, "width": 350, "height": 720, "text": "JULY 22\n\nGroceries                       − $84.31\nTransfer from Jamie       + $120.00\nMetro                              − $3.80\n\nJULY 21\n\nElectricity                     − $62.14\nCoffee House                   − $6.40", "background": "#151923", "color": "#dbe0eb", "borderColor": "#282e3d", "borderRadius": 20, "states": { "inactive": { "text": "TRANSACTION HISTORY\n\nConnection unavailable", "opacity": 0.55 } } }
-        },
-        {
-          "id": "export-action", "screenId": "activity", "name": "Export statement", "type": "Action", "description": "Requests a statement export that is generated asynchronously and delivered by notification.", "tags": ["export", "scheduled"],
-          "visual": { "kind": "button", "x": 20, "y": 920, "width": 350, "height": 52, "text": "Export monthly statement", "background": "#6878ef", "color": "#ffffff", "borderRadius": 15 }
-        },
-        {
-          "id": "login-card-image", "screenId": "image-components", "name": "Login card", "type": "Image", "description": "A complete login component rendered from the local login_card.png asset.", "tags": ["image", "login", "local-asset"],
-          "visual": { "kind": "image", "x": 0, "y": 24, "width": 301, "height": 517, "layout": { "horizontal": "center" }, "src": "docs/assets/login_card.png", "imageFit": "contain", "background": "#f5f5f5", "borderRadius": 8 }
-        },
-        {
-          "id": "coupons-card-image", "screenId": "image-components", "name": "Coupons card", "type": "Image", "description": "A coupon summary component rendered from the local coupons.png asset.", "tags": ["image", "coupon", "local-asset"],
-          "visual": { "kind": "image", "x": 0, "y": 590, "width": 384, "height": 187, "layout": { "horizontal": "center" }, "src": "docs/assets/coupons.png", "imageFit": "contain", "background": "#f5f5f5", "borderRadius": 8 }
-        }
-      ],
-      "systems": [
-        { "id": "identity", "name": "Identity Cloud", "type": "Authentication", "description": "Issues OAuth tokens and supplies the current user's profile.", "color": "#b47cff", "icon": "◆", "placement": "left" },
-        { "id": "payments", "name": "Payments API", "type": "Core service", "description": "Authorizes transfers, resolves payment intents, and exposes account balances.", "color": "#5f8cff", "icon": "↗", "placement": "right" },
-        { "id": "ledger", "name": "Ledger Stream", "type": "Event service", "description": "Publishes transaction settlement and account mutation events.", "color": "#55d99d", "icon": "≈", "placement": "right" },
-        { "id": "analytics", "name": "Product Analytics", "type": "Telemetry", "description": "Receives privacy-filtered interaction and performance events.", "color": "#f5a85c", "icon": "⌁", "placement": "left" },
-        { "id": "customer-identity", "name": "Customer Identity", "type": "OIDC provider", "description": "Authenticates phone/password and biometric login attempts and issues application sessions.", "color": "#e51827", "icon": "◇", "placement": "left" },
-        { "id": "loyalty-platform", "name": "Loyalty Platform", "type": "Rewards service", "description": "Returns available coupons, redemption state, and loyalty point balances.", "color": "#4f8bd8", "icon": "%", "placement": "right" },
-        { "id": "offers-cms", "name": "Offers CMS", "type": "Content service", "description": "Publishes localized coupon artwork and campaign copy.", "color": "#79b55b", "icon": "▧", "placement": "right" }
-      ],
-      "connections": [
-        { "id": "profile-resume", "name": "Refresh profile", "source": { "kind": "component", "id": "welcome-header" }, "target": { "kind": "system", "id": "identity" }, "protocol": "HTTPS", "method": "GET", "endpoint": "/v2/me", "description": "Refreshes display name and session claims.", "cadence": { "kind": "lifecycle", "label": "On app resume" } },
-        { "id": "balance-poll", "name": "Fetch available balance", "source": { "kind": "component", "id": "balance-card" }, "target": { "kind": "system", "id": "payments" }, "protocol": "GraphQL", "method": "QUERY", "endpoint": "AccountBalance", "description": "Retrieves the latest settled and pending balances.", "cadence": { "kind": "polling", "label": "Every 60 seconds", "intervalMs": 60000 } },
-        { "id": "send-transfer", "name": "Submit transfer", "source": { "kind": "component", "id": "send-action" }, "target": { "kind": "system", "id": "payments" }, "protocol": "HTTPS", "method": "POST", "endpoint": "/v1/transfers", "description": "Submits a user-authorized transfer.", "cadence": { "kind": "user-event", "label": "On confirmation" } },
-        { "id": "scan-intent", "name": "Resolve QR intent", "source": { "kind": "component", "id": "scan-action" }, "target": { "kind": "system", "id": "payments" }, "protocol": "HTTPS", "method": "POST", "endpoint": "/v1/payment-intents/resolve", "description": "Validates and resolves the scanned payment intent.", "cadence": { "kind": "user-event", "label": "Per successful scan" } },
-        { "id": "activity-poll", "name": "Refresh recent activity", "source": { "kind": "component", "id": "recent-activity" }, "target": { "kind": "system", "id": "payments" }, "protocol": "GraphQL", "method": "QUERY", "endpoint": "RecentTransactions", "description": "Pulls the most recent account movements.", "cadence": { "kind": "polling", "label": "Every 30 seconds", "intervalMs": 30000 } },
-        { "id": "history-page", "name": "Load transaction page", "source": { "kind": "component", "id": "activity-feed" }, "target": { "kind": "system", "id": "payments" }, "protocol": "GraphQL", "method": "QUERY", "endpoint": "TransactionHistory", "description": "Loads the next cursor-based page of transactions.", "cadence": { "kind": "user-event", "label": "On scroll threshold" } },
-        { "id": "settlement-events", "name": "Settlement updates", "source": { "kind": "system", "id": "ledger" }, "target": { "kind": "component", "id": "activity-feed" }, "protocol": "WebSocket", "endpoint": "wss://events/settlements", "description": "Pushes settled transaction changes into the visible feed.", "cadence": { "kind": "push", "label": "Event driven" } },
-        { "id": "statement-export", "name": "Generate statement", "source": { "kind": "component", "id": "export-action" }, "target": { "kind": "system", "id": "payments" }, "protocol": "HTTPS", "method": "POST", "endpoint": "/v1/statements", "description": "Schedules generation of the selected monthly statement.", "cadence": { "kind": "scheduled", "label": "One asynchronous job" } },
-        { "id": "reward-event", "name": "Track rewards view", "source": { "kind": "component", "id": "rewards-badge" }, "target": { "kind": "system", "id": "analytics" }, "protocol": "HTTPS", "method": "POST", "endpoint": "/events/batch", "description": "Queues a privacy-filtered rewards impression event.", "cadence": { "kind": "recurring", "label": "Batched every 5 minutes", "intervalMs": 300000 } },
-        { "id": "ledger-analytics", "name": "Settlement metrics", "source": { "kind": "system", "id": "ledger" }, "target": { "kind": "system", "id": "analytics" }, "protocol": "Kafka", "endpoint": "settlement.metrics.v1", "description": "Forwards aggregate settlement health metrics.", "cadence": { "kind": "continuous", "label": "Continuous stream" } },
-        { "id": "login-authenticate", "name": "Authenticate customer", "source": { "kind": "component", "id": "login-card-image" }, "target": { "kind": "system", "id": "customer-identity" }, "protocol": "OIDC", "method": "POST", "endpoint": "/oauth/token", "description": "Exchanges phone/password or biometric proof for an application session.", "cadence": { "kind": "user-event", "label": "On login submission" } },
-        { "id": "login-session-refresh", "name": "Refresh session", "source": { "kind": "system", "id": "customer-identity" }, "target": { "kind": "component", "id": "login-card-image" }, "protocol": "HTTPS", "method": "POST", "endpoint": "/oauth/refresh", "description": "Refreshes or rejects an existing customer session when the login view opens.", "cadence": { "kind": "lifecycle", "label": "On login screen open" } },
-        { "id": "coupon-availability", "name": "Load available coupons", "source": { "kind": "component", "id": "coupons-card-image" }, "target": { "kind": "system", "id": "loyalty-platform" }, "protocol": "GraphQL", "method": "QUERY", "endpoint": "AvailableCoupons", "description": "Loads coupon availability and the current loyalty balance.", "cadence": { "kind": "lifecycle", "label": "On component visibility" } },
-        { "id": "coupon-content", "name": "Publish coupon content", "source": { "kind": "system", "id": "offers-cms" }, "target": { "kind": "component", "id": "coupons-card-image" }, "protocol": "HTTPS", "method": "GET", "endpoint": "/v1/campaigns/active", "description": "Supplies localized artwork and campaign text for the coupon card.", "cadence": { "kind": "scheduled", "label": "Campaign refresh every 6 hours", "intervalMs": 21600000 } }
-      ],
-      "scenarios": [
-        { "id": "normal", "name": "Normal operation", "description": "All services and user actions are available.", "screenId": "home", "componentStates": {} },
-        { "id": "offline", "name": "Offline mode", "description": "Remote-data components display cached or unavailable states.", "screenId": "home", "componentStates": { "balance-card": "inactive", "send-action": "inactive", "recent-activity": "inactive", "activity-feed": "inactive" } },
-        { "id": "review", "name": "Statement review", "description": "The user is reviewing activity before exporting.", "screenId": "activity", "componentStates": { "scan-action": "inactive" } },
-        { "id": "asset-preview", "name": "Local image assets", "description": "Displays the two image components bundled from docs/assets.", "screenId": "image-components", "componentStates": {} }
-      ],
-      "initialScenarioId": "normal"
-    }
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
