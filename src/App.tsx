@@ -8,7 +8,7 @@ import { parseConfig, type ConfigResult } from './config'
 import { cadenceLabels, type Selection } from './model'
 import type { VisiFlowConfig } from './types'
 
-function ConfigError({ errors }: { errors: string[] }) {
+export function ConfigError({ errors }: { errors: string[] }) {
   return <main className="config-error"><div className="error-mark">!</div><p className="eyebrow">Configuration error</p><h1>VisiFlow could not start</h1><p>Correct the embedded JSON configuration and reload this file.</p><ul>{errors.map((error) => <li key={error}><code>{error}</code></li>)}</ul></main>
 }
 
@@ -70,7 +70,7 @@ function GearIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25A3.75 3.75 0 1 0 12 15.75 3.75 3.75 0 0 0 12 8.25Zm8.1 5.1-1.56.9c-.15.5-.35.98-.6 1.43l.47 1.74-1 1-1.75-.47c-.45.25-.92.45-1.42.59l-.9 1.56h-1.4l-.9-1.56c-.5-.14-.98-.34-1.43-.59l-1.74.47-1-1 .47-1.74c-.25-.45-.45-.93-.6-1.43l-1.55-.9v-1.4l1.56-.9c.14-.5.34-.98.59-1.43l-.47-1.74 1-1 1.74.47c.45-.25.93-.45 1.43-.59l.9-1.56h1.4l.9 1.56c.5.14.97.34 1.42.59l1.75-.47 1 1-.47 1.74c.25.45.45.93.6 1.43l1.55.9v1.4Z" /></svg>
 }
 
-function VisiFlow({ config, onConfig }: { config: VisiFlowConfig; onConfig: (config: VisiFlowConfig) => void }) {
+export function VisiFlow({ config, onConfig }: { config: VisiFlowConfig; onConfig: (config: VisiFlowConfig) => void }) {
   const initialScenario = config.scenarios.find((item) => item.id === config.initialScenarioId) ?? config.scenarios[0]
   const [view, setView] = useState<'map' | 'catalog' | 'systems'>('map')
   const [scenarioId, setScenarioId] = useState(initialScenario.id)

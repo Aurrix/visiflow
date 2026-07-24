@@ -62,7 +62,7 @@ export function Catalog(props: CatalogProps) {
                   <div className="component-glyph">{component.type.slice(0, 1).toUpperCase()}</div>
                   <span className={`state-pill ${currentState}`}><i />{currentState}</span>
                 </div>
-                <ComponentPreview component={component} scenario={scenario} />
+                <ComponentPreview component={component} screen={config.screens.find((item) => item.id === component.screenId)} scenario={scenario} />
                 <p className="card-kicker">{screen?.name} · {component.type}</p>
                 <h3>{component.name}</h3>
                 <p className="card-description">{component.description}</p>

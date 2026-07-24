@@ -1,14 +1,16 @@
 import type { CSSProperties } from 'react'
 import { resolveAssetSource } from '../assets'
 import { componentStyle } from '../model'
-import type { AppComponent, Scenario } from '../types'
+import type { AppComponent, AppScreen, Scenario } from '../types'
 
-export function ComponentPreview({ component, scenario }: { component: AppComponent; scenario: Scenario }) {
+export function ComponentPreview({ component, screen, scenario }: { component: AppComponent; screen?: AppScreen; scenario: Scenario }) {
   const style = componentStyle(component, scenario)
   const visual = component.visual
   const scale = Math.min(190 / visual.width, 126 / visual.height)
   const width = Math.max(28, visual.width * scale)
   const height = Math.max(20, visual.height * scale)
+  const regionCrop = visual.kind === 'hotspot' && !style.src && screen?.backgroundImage
+  const screenContentHeight = screen ? Math.max(screen.contentHeight ?? screen.height, visual.y + visual.height) : 0
   const previewStyle = {
     width,
     height,
@@ -22,6 +24,18 @@ export function ComponentPreview({ component, scenario }: { component: AppCompon
   return (
     <div className="component-preview" aria-label={`${component.name} visual preview`} role="img">
       <div className={`component-preview-surface preview-${visual.kind}`} style={previewStyle}>
+        {regionCrop && <img
+          className="component-preview-image component-preview-crop"
+          src={resolveAssetSource(screen.backgroundImage!)}
+          alt=""
+          style={{
+            width: screen.width * scale,
+            height: screenContentHeight * scale,
+            maxWidth: 'none',
+            left: -visual.x * scale,
+            top: -visual.y * scale,
+          }}
+        />}
         {style.src && <img
           className="component-preview-image"
           src={resolveAssetSource(style.src)}
@@ -32,7 +46,7 @@ export function ComponentPreview({ component, scenario }: { component: AppCompon
           {visual.kind === 'input' && <i>⌕</i>}
           {style.text ?? component.name}
         </span>}
-        {visual.kind === 'hotspot' && !style.src && <span className="hotspot-label">Hotspot region</span>}
+        {visual.kind === 'hotspot' && !style.src && !regionCrop && <span className="hotspot-label">Hotspot region</span>}
       </div>
     </div>
   )

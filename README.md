@@ -11,7 +11,22 @@ npm run dev
 npm run verify
 ```
 
-`npm run build` produces one portable file at `dist/index.html`. It can be opened directly with `file://` and does not require a web server.
+`npm run build` produces two portable files:
+
+- `dist/index.html` is the read-only visualization artifact.
+- `dist/config-editor.html` opens, validates, previews, and saves VisiFlow JSON files on disk.
+
+Both files are self-contained, can be opened directly with `file://`, and do not require a web server.
+
+### Edit configuration files on disk
+
+Open `dist/config-editor.html` in a Chromium-based browser, then choose **Open JSON**. The editor provides structured forms for the entire configuration and a simple device canvas for drawing, selecting, moving, and resizing components. Use screen regions over full screenshots, individually embedded component images, schema-rendered UI, or mix all three approaches on one screen.
+
+Imported screenshots and component images are embedded into the saved JSON. Long screenshots are scaled to the screen's logical width and automatically set `contentHeight`. Screenshot regions use the full screen image in the app map and derive their catalog thumbnails from their bounds without storing duplicate crops.
+
+**Save** writes back to the selected file, while **Save as** chooses another destination. `Ctrl/⌘ + S` saves and `Ctrl/⌘ + Z` undoes the most recent editor change.
+
+Browsers without the File System Access API use a normal file upload for opening and download a new JSON file when saving. This fallback cannot overwrite the original file in place.
 
 ## Supply production data
 

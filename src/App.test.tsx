@@ -66,4 +66,14 @@ describe('VisiFlow', () => {
     expect(container.querySelector('.component-preview-image')).toHaveAttribute('src', inlinePng)
     expect(container.querySelector('.component-preview-label')).toHaveTextContent('Pay')
   })
+
+  it('derives hotspot card previews from the parent screen screenshot', () => {
+    const config = structuredClone(testConfig)
+    config.screens[0].backgroundImage = inlinePng
+    config.components[0].visual.kind = 'hotspot'
+    const { container } = render(<App result={{ ok: true, data: config }} />)
+    fireEvent.click(screen.getByRole('button', { name: /components/i }))
+    expect(container.querySelector('.component-preview-crop')).toHaveAttribute('src', inlinePng)
+    expect(container.querySelector('.hotspot-label')).not.toBeInTheDocument()
+  })
 })
