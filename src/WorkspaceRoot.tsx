@@ -4,10 +4,12 @@ import { parseConfig } from './config'
 import { DiskConfigEditor, type EditorSelection } from './DiskConfigEditor'
 import {
   defaultProjectUrl,
+  loadProjectFromDirectory,
   loadProjectFromHttp,
   pickProjectDirectory,
   type ProjectLoadResult,
 } from './project-loader'
+import { forgetRecentProject, recentProjects, rememberRecentProject, type RecentProject } from './recent-projects'
 import { saveProjectWorkspace } from './project-workspace'
 import type { EndpointRef, LoadedProject, ProjectWorkspace, VisiFlowConfig } from './types'
 
@@ -21,6 +23,16 @@ interface ProjectSession {
   revision: number
 }
 
+function openedAgo(timestamp: number) {
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000))
+  if (minutes < 1) return 'Opened just now'
+  if (minutes < 60) return `Opened ${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `Opened ${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `Opened ${days}d ago`
+}
+
 function cloneWorkspace(workspace: ProjectWorkspace): ProjectWorkspace {
   return {
     ...workspace,
@@ -32,25 +44,30 @@ function cloneWorkspace(workspace: ProjectWorkspace): ProjectWorkspace {
   }
 }
 
-function ProjectLaunch({ loading, errors, projectUrl, onProjectUrl, onOpen, onOpenUrl }: {
+function ProjectLaunch({ loading, errors, projectUrl, recent, onProjectUrl, onOpen, onOpenRecent, onOpenUrl, onOpenDemo }: {
   loading: boolean
   errors: string[]
   projectUrl: string
+  recent: RecentProject[]
   onProjectUrl: (value: string) => void
   onOpen: () => void
+  onOpenRecent: (project: RecentProject) => void
   onOpenUrl: () => void
+  onOpenDemo: () => void
 }) {
   return <main className="project-launch">
     <div className="brand-mark"><i /><i /><i /></div>
     <p className="eyebrow">Application request atlas</p>
     <h1>{loading ? 'Loading VisiFlow project…' : 'Open a VisiFlow project'}</h1>
-    <p>Select a folder to view and edit its <code>project.visiflow.md</code> project, or open a hosted project read-only.</p>
+    <p>Choose a recent local project, open a folder, or continue with the demo.</p>
+    <div className="project-launch-layout">
+    <section className="recent-projects" aria-label="Recently opened projects"><header><span>Recently opened</span><small>Local to this browser</small></header>{recent.length > 0 ? recent.map((project) => <button type="button" key={project.id} onClick={() => onOpenRecent(project)}><span className="app-avatar">{project.name.slice(0, 1)}</span><span><strong>{project.name}</strong><small>{openedAgo(project.openedAt)} · Local folder</small></span><i>›</i></button>) : <p className="recent-projects-empty">Your recently opened local projects will appear here.</p>}</section>
     {!loading && <div className="project-launch-actions">
-      <button type="button" className="primary-button" onClick={onOpen}>Open</button>
-      <span>or</span>
-      <label><span className="sr-only">Project manifest URL</span><input aria-label="Project manifest URL" value={projectUrl} onChange={(event) => onProjectUrl(event.target.value)} /></label>
-      <button type="button" className="secondary-button" onClick={onOpenUrl} disabled={!projectUrl.trim()}>Open Project URL</button>
+      <div className="launch-primary-actions"><button type="button" className="primary-button launch-open-button" onClick={onOpen}>Open</button><button type="button" className="launch-icon-button" onClick={onOpenDemo} aria-label="Open demo" title="Open demo">◇</button></div>
+      <div className="launch-divider" />
+      <label className="launch-url"><span>Open from URL</span><div><input aria-label="Project manifest URL" value={projectUrl} onChange={(event) => onProjectUrl(event.target.value)} /><button type="button" className="launch-icon-button" onClick={onOpenUrl} disabled={!projectUrl.trim()} aria-label="Open project URL" title="Open project URL">↗</button></div></label>
     </div>}
+    </div>
     {errors.length > 0 && <div className="launch-errors" role="alert"><strong>Project could not be loaded</strong><ul>{errors.map((error) => <li key={error}><code>{error}</code></li>)}</ul></div>}
   </main>
 }
@@ -77,7 +94,7 @@ function viewerSelection(selection: EditorSelection | null): EndpointRef | null 
 export function WorkspaceRoot() {
   const [session, setSession] = useState<ProjectSession | null>(null)
   const [mode, setMode] = useState<ProjectMode>('view')
-  const [loading, setLoading] = useState(window.location.protocol !== 'file:')
+  const [loading, setLoading] = useState(false)
   const [loadResult, setLoadResult] = useState<ProjectLoadResult | null>(null)
   const [projectUrl, setProjectUrl] = useState(defaultProjectUrl())
   const [screenId, setScreenId] = useState('')
@@ -86,6 +103,7 @@ export function WorkspaceRoot() {
   const [savedRevision, setSavedRevision] = useState(0)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: 'idle', message: '' })
   const [saveSignal, setSaveSignal] = useState(0)
+  const [recent, setRecent] = useState<RecentProject[]>([])
 
   const sessionRef = useRef(session)
   const generationRef = useRef(0)
@@ -131,17 +149,9 @@ export function WorkspaceRoot() {
     })
   }, [])
 
-  useEffect(() => {
-    if (window.location.protocol === 'file:') return
-    let active = true
-    void loadProjectFromHttp(defaultProjectUrl()).then((next) => {
-      if (!active) return
-      setLoadResult(next)
-      if (next.ok) initializeProject(next.data)
-      setLoading(false)
-    })
-    return () => { active = false }
-  }, [initializeProject])
+  const refreshRecent = useCallback(() => { void recentProjects().then(setRecent) }, [])
+
+  useEffect(() => { refreshRecent() }, [refreshRecent])
 
   const mayDiscardChanges = useCallback(() => {
     if (!session || !writable) return true
@@ -152,11 +162,34 @@ export function WorkspaceRoot() {
   const openFolder = useCallback(async () => {
     if (!mayDiscardChanges()) return
     setLoading(true)
+    setLoadResult(null)
     const next = await pickProjectDirectory()
-    setLoadResult(next)
-    if (next.ok) initializeProject(next.data)
+    const cancelled = !next.ok && next.errors.some((error) => error.toLowerCase().includes('cancelled'))
+    if (!cancelled) setLoadResult(next)
+    if (next.ok) {
+      initializeProject(next.data)
+      const handle = next.data.workspace.directoryHandle
+      if (handle) await rememberRecentProject(next.data.workspace.name, handle as Parameters<typeof rememberRecentProject>[1])
+      refreshRecent()
+    }
     setLoading(false)
-  }, [initializeProject, mayDiscardChanges])
+  }, [initializeProject, mayDiscardChanges, refreshRecent])
+
+  const openRecent = useCallback(async (project: RecentProject) => {
+    if (!mayDiscardChanges()) return
+    setLoading(true)
+    const next = await loadProjectFromDirectory(project.handle)
+    setLoadResult(next)
+    if (next.ok) {
+      initializeProject(next.data)
+      await rememberRecentProject(next.data.workspace.name, project.handle)
+      refreshRecent()
+    } else {
+      await forgetRecentProject(project.id)
+      refreshRecent()
+    }
+    setLoading(false)
+  }, [initializeProject, mayDiscardChanges, refreshRecent])
 
   const openUrl = useCallback(async () => {
     if (!mayDiscardChanges()) return
@@ -166,6 +199,17 @@ export function WorkspaceRoot() {
     if (next.ok) initializeProject(next.data)
     setLoading(false)
   }, [initializeProject, mayDiscardChanges, projectUrl])
+
+  const openDemo = useCallback(() => {
+    setProjectUrl(defaultProjectUrl())
+    void (async () => {
+      setLoading(true)
+      const next = await loadProjectFromHttp(defaultProjectUrl())
+      setLoadResult(next)
+      if (next.ok) initializeProject(next.data)
+      setLoading(false)
+    })()
+  }, [initializeProject])
 
   const commitConfig = useCallback((mutate: (draft: VisiFlowConfig) => void) => {
     setSession((current) => {
@@ -345,9 +389,12 @@ export function WorkspaceRoot() {
     loading={loading}
     errors={loadResult && !loadResult.ok ? loadResult.errors : []}
     projectUrl={projectUrl}
+    recent={recent}
     onProjectUrl={setProjectUrl}
     onOpen={() => void openFolder()}
+    onOpenRecent={(project) => void openRecent(project)}
     onOpenUrl={() => void openUrl()}
+    onOpenDemo={openDemo}
   />
 
   const enterView = () => {

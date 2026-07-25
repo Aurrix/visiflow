@@ -23,6 +23,7 @@ export interface ProjectDirectoryHandle {
   getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<ProjectDirectoryHandle>
   getFileHandle: (name: string, options?: { create?: boolean }) => Promise<ProjectFileHandle>
   removeEntry: (name: string, options?: { recursive?: boolean }) => Promise<void>
+  isSameEntry?: (other: ProjectDirectoryHandle) => Promise<boolean>
 }
 
 type PickerWindow = Window & {

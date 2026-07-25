@@ -137,7 +137,7 @@ describe('unified workspace', () => {
     expect(await screen.findByRole('heading', { name: 'Open a VisiFlow project' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open' })).toBeInTheDocument()
     expect(screen.getByLabelText('Project manifest URL')).toHaveValue('demo/project.visiflow.md')
-    expect(screen.getByRole('button', { name: 'Open Project URL' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open project URL' })).toBeInTheDocument()
   })
 
   it('hands a selected viewer component directly to the editor', async () => {
@@ -147,6 +147,13 @@ describe('unified workspace', () => {
     expect(screen.getByRole('heading', { name: 'Action' })).toBeInTheDocument()
     expect(screen.getByLabelText('Name')).toHaveValue('Action')
     expect(screen.getAllByText('Home').length).toBeGreaterThan(0)
+  })
+
+  it('does not show an error when folder selection is cancelled', async () => {
+    vi.stubGlobal('showDirectoryPicker', vi.fn(async () => { throw new DOMException('Cancelled', 'AbortError') }))
+    render(<WorkspaceRoot />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Open' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 
   it('enters edit mode with Shift + Tab outside text-entry controls', async () => {
@@ -207,6 +214,7 @@ describe('unified workspace', () => {
       return new Response(manifest)
     }))
     render(<WorkspaceRoot />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Open demo' }))
     const edit = await screen.findByRole('button', { name: 'Edit' })
     expect(edit).toBeDisabled()
     expect(screen.queryByText('Read-only')).not.toBeInTheDocument()
