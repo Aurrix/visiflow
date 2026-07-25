@@ -3,10 +3,12 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './App.css'
 import './editor.css'
+import { PwaUpdatePrompt } from './PwaUpdatePrompt'
 import { WorkspaceRoot } from './WorkspaceRoot'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <WorkspaceRoot />
+    <PwaUpdatePrompt />
   </StrictMode>,
 )

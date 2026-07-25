@@ -1,0 +1,19 @@
+{
+  "name": "VisiFlow — Application Request Atlas",
+  "short_name": "VisiFlow",
+  "description": "Visualize and edit VisiFlow application request projects.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#090b11",
+  "theme_color": "#090b11",
+  "icons": [
+    {
+      "src": "./icons/visiflow.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

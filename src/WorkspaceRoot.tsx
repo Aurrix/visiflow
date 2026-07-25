@@ -46,7 +46,7 @@ function ProjectLaunch({ loading, errors, projectUrl, onProjectUrl, onOpen, onOp
     <h1>{loading ? 'Loading VisiFlow project…' : 'Open a VisiFlow project'}</h1>
     <p>Select a folder to view and edit its <code>project.visiflow.md</code> project, or open a hosted project read-only.</p>
     {!loading && <div className="project-launch-actions">
-      <button type="button" className="primary-button" onClick={onOpen}>Open Folder</button>
+      <button type="button" className="primary-button" onClick={onOpen}>Open</button>
       <span>or</span>
       <label><span className="sr-only">Project manifest URL</span><input aria-label="Project manifest URL" value={projectUrl} onChange={(event) => onProjectUrl(event.target.value)} /></label>
       <button type="button" className="secondary-button" onClick={onOpenUrl} disabled={!projectUrl.trim()}>Open Project URL</button>
@@ -290,6 +290,19 @@ export function WorkspaceRoot() {
     setSaveSignal((value) => value + 1)
   }, [])
 
+  const enterEdit = useCallback(() => {
+    if (!config || !writable) return
+    if (activeSelection?.kind === 'component' && activeSelection.id) {
+      const component = config.components.find((item) => item.id === activeSelection.id)
+      if (component) setScreenId(component.screenId)
+    } else if (activeSelection?.kind === 'task' && activeSelection.id) {
+      const task = config.tasks.find((item) => item.id === activeSelection.id)
+      if (task?.scope.kind === 'screen') setScreenId(task.scope.screenId)
+    }
+    setSelection(activeSelection ?? { kind: 'screen', id: activeScreenId })
+    setMode('edit')
+  }, [activeScreenId, activeSelection, config, writable])
+
   useEffect(() => {
     if (saveSignal) void drainSaves()
   }, [saveSignal])
@@ -304,6 +317,30 @@ export function WorkspaceRoot() {
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty, saveStatus.kind, validation, writable])
 
+  useEffect(() => {
+    const enterEditWithTab = (event: KeyboardEvent) => {
+      const target = event.target
+      const isTyping = target instanceof Element && target.matches('input, textarea, select, [contenteditable="true"]')
+      if ((event.key !== 'Tab' && event.code !== 'Tab') || !event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || isTyping || !writable) return
+      event.preventDefault()
+      event.stopPropagation()
+      event.stopImmediatePropagation()
+      if (mode === 'edit') {
+        if (!validation?.ok) {
+          setSaveStatus({ kind: 'idle', message: `Fix configuration issue before viewing: ${validation?.errors[0] ?? 'Invalid project'}` })
+          return
+        }
+        requestPersist()
+        setSelection((current) => viewerSelection(current))
+        setMode('view')
+        return
+      }
+      enterEdit()
+    }
+    window.addEventListener('keydown', enterEditWithTab, true)
+    return () => window.removeEventListener('keydown', enterEditWithTab, true)
+  }, [enterEdit, mode, requestPersist, validation, writable])
+
   if (!session || !config) return <ProjectLaunch
     loading={loading}
     errors={loadResult && !loadResult.ok ? loadResult.errors : []}
@@ -312,19 +349,6 @@ export function WorkspaceRoot() {
     onOpen={() => void openFolder()}
     onOpenUrl={() => void openUrl()}
   />
-
-  const enterEdit = () => {
-    if (!writable) return
-    if (activeSelection?.kind === 'component' && activeSelection.id) {
-      const component = config.components.find((item) => item.id === activeSelection.id)
-      if (component) setScreenId(component.screenId)
-    } else if (activeSelection?.kind === 'task' && activeSelection.id) {
-      const task = config.tasks.find((item) => item.id === activeSelection.id)
-      if (task?.scope.kind === 'screen') setScreenId(task.scope.screenId)
-    }
-    setSelection(activeSelection ?? { kind: 'screen', id: activeScreenId })
-    setMode('edit')
-  }
 
   const enterView = () => {
     if (!validation?.ok) {
@@ -336,23 +360,26 @@ export function WorkspaceRoot() {
     setMode('view')
   }
 
-  const controls = <div className="workspace-controls">
+  const controls = <div className="workspace-controls" aria-label="Project controls">
+    <button type="button" className="secondary-button open-folder" onClick={() => void openFolder()}>Open</button>
+    <div className="mode-controls">
     <div className="mode-switch" aria-label="Workspace mode">
-      <button type="button" className={mode === 'view' ? 'active' : ''} aria-pressed={mode === 'view'} onClick={enterView}>View</button>
+      <button type="button" className={mode === 'view' ? 'active' : ''} aria-pressed={mode === 'view'} onClick={enterView} aria-label="View" title="View project"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.5" /></svg></button>
       <button
         type="button"
         className={mode === 'edit' ? 'active' : ''}
         aria-pressed={mode === 'edit'}
         onClick={enterEdit}
         disabled={!writable}
-        title={writable ? 'Edit this project' : 'URL projects are read-only. Open a folder to edit.'}
-      >Edit</button>
+        title={writable ? 'Edit this project (Shift + Tab)' : 'URL projects are read-only. Open a folder to edit.'}
+      aria-label="Edit"
+      ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.5-.8 4.3 4.3-.8L19 8.5 15.5 5 4 16.5Z" /><path d="m14.5 6 3.5 3.5" /></svg></button>
     </div>
-    <span className={`save-indicator ${saveStatus.kind}`} title={saveStatus.message}>
+      {mode === 'edit' && writable && <><span className={`save-indicator ${saveStatus.kind}`} title={saveStatus.message} aria-label={saveStatus.message}>
       {validation && !validation.ok ? 'Invalid' : saveStatus.kind === 'saving' ? 'Saving…' : saveStatus.kind === 'error' ? 'Save failed' : dirty ? 'Modified' : writable ? 'Saved' : 'Read-only'}
-    </span>
+      </span></>}
+    </div>
     {saveStatus.kind === 'error' && <button type="button" className="secondary-button retry-save" onClick={requestPersist}>Retry</button>}
-    <button type="button" className="secondary-button open-folder" onClick={() => void openFolder()}>Open Folder</button>
   </div>
 
   if (mode === 'edit') {

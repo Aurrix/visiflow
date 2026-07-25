@@ -486,10 +486,11 @@ export function DiskConfigEditor({
       <header className="disk-editor-toolbar">
         <div className="disk-editor-brand"><div className="brand-mark"><i /><i /><i /></div><div><strong>VisiFlow Project Editor</strong><span>{workspace.manifestPath}{dirty ? ' • modified' : ''}</span></div></div>
         <div className="disk-editor-actions">
-          <button type="button" className="icon-button" onClick={undo} disabled={!canUndo} aria-label="Undo">↶</button>
-          <button type="button" className="icon-button" onClick={redo} disabled={!canRedo} aria-label="Redo">↷</button>
+          <div className="disk-editor-app-identity"><span className="app-avatar">{config.app.name.slice(0, 1)}</span><strong>{config.app.name}</strong></div>
           {toolbarExtras}
-          <button type="button" className="primary-button" onClick={onPersistBoundary} disabled={!validation.ok || !dirty}>Save</button>
+          <button type="button" className="icon-button editor-undo" onClick={undo} disabled={!canUndo} aria-label="Undo">↶</button>
+          <button type="button" className="icon-button editor-redo" onClick={redo} disabled={!canRedo} aria-label="Redo">↷</button>
+          <button type="button" className="primary-button editor-save" onClick={onPersistBoundary} disabled={!validation.ok || !dirty}>Save</button>
         </div>
       </header>
 

@@ -5,6 +5,9 @@ const dist = resolve('dist')
 const files = (await readdir(dist, { recursive: true })).map((file) => file.replaceAll('\\', '/'))
 const requiredFiles = [
   'index.html',
+  'manifest.webmanifest',
+  'sw.js',
+  'icons/visiflow.svg',
   'demo/project.visiflow.md',
   'demo/screens/login/login-card.visiflow.md',
   'demo/screens/offers/coupons-card.visiflow.md',
@@ -34,7 +37,8 @@ for (const file of ['index.html']) {
 const viewer = await readFile(resolve(dist, 'index.html'), 'utf8')
 if (!viewer.includes('demo/project.visiflow.md')) throw new Error('Viewer default project metadata is missing')
 if (!viewer.includes('VisiFlow Project Editor')) throw new Error('Unified editor marker is missing')
-if (!viewer.includes('Open Folder')) throw new Error('Unified folder action is missing')
+if (!viewer.includes('open-folder')) throw new Error('Unified folder action is missing')
+if (!viewer.includes('manifest.webmanifest')) throw new Error('PWA manifest link is missing')
 if (viewer.includes('Open JSON')) throw new Error('Legacy JSON editor behavior is still bundled')
 
 const sizes = [

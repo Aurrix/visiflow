@@ -102,9 +102,8 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls 
           <button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')} aria-current={view === 'catalog' ? 'page' : undefined}><span>◦</span> Components</button>
           <button className={view === 'systems' ? 'active' : ''} onClick={() => setView('systems')} aria-current={view === 'systems' ? 'page' : undefined}><span>◇</span> Systems</button>
           {onOpenProject && <button className="settings-trigger project-switch" type="button" onClick={onOpenProject} aria-label="Open another project" title="Open another project">⌑</button>}
-          {workspaceControls}
         </nav>
-        <div className="app-identity"><span className="app-avatar">{config.app.name.slice(0, 1)}</span><span><strong>{config.app.name}</strong><small>{config.app.platform}</small></span></div>
+        <div className="app-identity"><span className="app-avatar">{config.app.name.slice(0, 1)}</span><span><strong>{config.app.name}</strong><small>{config.app.platform}</small></span>{workspaceControls}</div>
       </header>
 
       <main className={`main-layout view-${view}`}>

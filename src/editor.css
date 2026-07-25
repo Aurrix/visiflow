@@ -29,8 +29,27 @@
 .disk-editor-brand strong { font-size: 14px; }
 .disk-editor-brand span { color: var(--muted); font-size: 11px; }
 .disk-editor-actions button { white-space: nowrap; }
-.disk-editor-actions .icon-button { width: 32px; height: 32px; }
+.disk-editor-actions .icon-button { width: 27px; height: 27px; font-size: 16px; }
 .disk-editor-actions button:disabled { cursor: not-allowed; opacity: .42; }
+.disk-editor-app-identity { display: flex; align-items: center; gap: 7px; margin-right: 2px; padding-right: 10px; border-right: 1px solid var(--line); }
+.disk-editor-app-identity .app-avatar { width: 28px; height: 28px; border-radius: 7px; font-size: 11px; }
+.disk-editor-app-identity strong { max-width: 130px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.disk-editor-actions .workspace-controls, .disk-editor-actions .mode-controls { display: contents; }
+.disk-editor-actions .mode-switch { order: 1; }
+.disk-editor-actions .save-indicator { order: 2; width: 25px; height: 25px; display: grid; place-items: center; overflow: visible; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: #0b0e15; font-size: 0; animation: autosave-pulse 2s ease-in-out infinite; }
+.disk-editor-actions .save-indicator::before { content: '•'; font-size: 16px; line-height: 1; }
+.disk-editor-actions .save-indicator.saving { color: var(--accent); animation: autosave-spin .75s linear infinite; }
+.disk-editor-actions .save-indicator.saving::before { content: '↻'; }
+.disk-editor-actions .save-indicator.saved { color: var(--green); }
+.disk-editor-actions .save-indicator.saved::before { content: '✓'; font-size: 12px; }
+.disk-editor-actions .save-indicator.error { color: #ff8da1; animation: none; }
+.disk-editor-actions .save-indicator.error::before { content: '!'; font-size: 12px; font-weight: 800; }
+.disk-editor-actions .editor-undo { order: 3; }
+.disk-editor-actions .editor-redo { order: 4; }
+.disk-editor-actions .open-folder { order: 5; }
+.disk-editor-actions .editor-save { order: 6; height: 27px; padding: 0 9px; font-size: 9px; }
+@keyframes autosave-spin { to { transform: rotate(360deg); } }
+@keyframes autosave-pulse { 50% { border-color: color-mix(in srgb, var(--accent) 52%, var(--line)); box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 18%, transparent); } }
 
 .disk-editor-status {
   display: flex;

@@ -125,7 +125,7 @@ async function openFolder(root = projectFolder()) {
   vi.stubGlobal('showDirectoryPicker', vi.fn(async () => root))
   render(<WorkspaceRoot />)
   expect(await screen.findByRole('heading', { name: 'Open a VisiFlow project' })).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Open Folder' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }))
   await screen.findByText('Application request atlas')
   return root
 }
@@ -135,7 +135,7 @@ describe('unified workspace', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('missing', { status: 404 })))
     render(<WorkspaceRoot />)
     expect(await screen.findByRole('heading', { name: 'Open a VisiFlow project' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open Folder' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open' })).toBeInTheDocument()
     expect(screen.getByLabelText('Project manifest URL')).toHaveValue('demo/project.visiflow.md')
     expect(screen.getByRole('button', { name: 'Open Project URL' })).toBeInTheDocument()
   })
@@ -147,6 +147,16 @@ describe('unified workspace', () => {
     expect(screen.getByRole('heading', { name: 'Action' })).toBeInTheDocument()
     expect(screen.getByLabelText('Name')).toHaveValue('Action')
     expect(screen.getAllByText('Home').length).toBeGreaterThan(0)
+  })
+
+  it('enters edit mode with Shift + Tab outside text-entry controls', async () => {
+    await openFolder()
+    const enteredEdit = fireEvent.keyDown(screen.getByRole('button', { name: 'Action, active' }), { key: 'Tab', code: 'Tab', shiftKey: true })
+    expect(enteredEdit).toBe(false)
+    expect(document.querySelector('.disk-editor')).toBeInTheDocument()
+    const returnedToView = fireEvent.keyDown(document.querySelector('.disk-editor')!, { key: 'Tab', code: 'Tab', shiftKey: true })
+    expect(returnedToView).toBe(false)
+    expect(document.querySelector('.disk-editor')).not.toBeInTheDocument()
   })
 
   it('saves valid field changes on blur and exposes the shared draft in View', async () => {
@@ -199,6 +209,6 @@ describe('unified workspace', () => {
     render(<WorkspaceRoot />)
     const edit = await screen.findByRole('button', { name: 'Edit' })
     expect(edit).toBeDisabled()
-    expect(screen.getByText('Read-only')).toBeInTheDocument()
+    expect(screen.queryByText('Read-only')).not.toBeInTheDocument()
   })
 })
