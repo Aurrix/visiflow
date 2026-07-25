@@ -4,6 +4,7 @@ export const testConfig: VisiFlowConfig = {
   schemaVersion: 2,
   app: { id: 'app', name: 'Test App', platform: 'iOS', description: 'Test description', device: 'ios', initialScreenId: 'home' },
   screens: [{ id: 'home', name: 'Home', width: 390, height: 844 }],
+  textureLayers: [],
   components: [{
     id: 'button', screenId: 'home', name: 'Pay button', type: 'Action', description: 'Submits payment',
     visual: { kind: 'button', x: 20, y: 80, width: 100, height: 40, text: 'Pay' },

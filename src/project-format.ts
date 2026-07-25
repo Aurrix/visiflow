@@ -13,6 +13,7 @@ import {
   screenSchema,
   systemSchema,
   taskSchema,
+  textureLayerSchema,
 } from './config'
 import type {
   ComponentDocument,
@@ -33,6 +34,7 @@ export const projectManifestSchema = z.object({
   kind: z.literal('project'),
   app: appSchema.omit({ description: true }),
   screens: z.array(screenSchema).min(1),
+  textureLayers: z.array(textureLayerSchema).default([]),
   tasks: z.array(taskSchema),
   systems: z.array(systemSchema),
   scenarios: z.array(scenarioSchema).min(1),
@@ -141,6 +143,7 @@ export function assembleProject(
     schemaVersion: 2,
     app: { ...manifest.app, description: projectBody },
     screens: manifest.screens,
+    textureLayers: manifest.textureLayers ?? [],
     components,
     tasks: manifest.tasks,
     systems: manifest.systems,
@@ -150,6 +153,7 @@ export function assembleProject(
   }
   const assetSources = [
     ...config.screens.flatMap((screen) => screen.backgroundImage ? [screen.backgroundImage] : []),
+    ...config.textureLayers.map((layer) => layer.src),
     ...config.components.flatMap((component) => [
       component.visual.src,
       component.visual.states?.active?.src,

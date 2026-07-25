@@ -50,6 +50,7 @@ async function scanDirectory(
 function assetReferences(config: VisiFlowConfig): string[] {
   const sources = [
     ...config.screens.flatMap((screen) => screen.backgroundImage ? [screen.backgroundImage] : []),
+    ...config.textureLayers.map((layer) => layer.src),
     ...config.components.flatMap((component) => [
       component.visual.src,
       component.visual.states?.active?.src,

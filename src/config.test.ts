@@ -25,13 +25,10 @@ describe('parseConfig', () => {
       expect(new Set(assembled.data.config.connections.map((connection) => connection.protocol))).toEqual(new Set([
         'Internal', 'HTTPS', 'GraphQL', 'gRPC', 'Kafka', 'WebSocket', 'HTTP/2',
       ]))
-      const login = assembled.data.config.components.find((component) => component.id === 'login-card')
-      expect(login?.visual).toEqual(expect.objectContaining({
-        x: 0,
-        y: 0,
-        width: 390,
-        height: 844,
-        imageFit: 'contain',
+      const rideCard = assembled.data.config.components.find((component) => component.id === 'ride-card')
+      expect(rideCard?.visual).toEqual(expect.objectContaining({
+        kind: 'image',
+        textureCrop: expect.objectContaining({ textureId: 'uber-overview' }),
       }))
     }
   })
@@ -146,6 +143,15 @@ describe('parseConfig', () => {
       expect(result.data.screens[0].backgroundImage).toBe(inlinePng)
       expect(result.data.components[0].visual.src).toBe(inlinePng)
     }
+  })
+
+  it('validates project texture layers and component crop bindings', () => {
+    const input = structuredClone(testConfig)
+    input.textureLayers = [{ id: 'reference', name: 'Reference', src: inlinePng, x: 0, y: 0, width: 100, height: 100, order: 0 }]
+    input.components[0].visual.textureCrop = { textureId: 'reference', x: 10, y: 10, width: 40, height: 30 }
+    expect(parseConfig(input).ok).toBe(true)
+    input.components[0].visual.textureCrop.textureId = 'missing'
+    expect(parseConfig(input).ok).toBe(false)
   })
 
   it('reports unknown connection endpoints with a property path', () => {

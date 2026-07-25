@@ -96,7 +96,7 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls 
   return (
     <div className="app-shell" style={{ '--accent': config.app.accent ?? '#7c8cff' } as React.CSSProperties}>
       <header className="topbar">
-        <div className="brand-block"><div className="brand-mark"><i /><i /><i /></div><div><strong>VisiFlow</strong><span>Application request atlas</span></div></div>
+        <div className="brand-block"><div className="brand-mark"><img src={`${import.meta.env.BASE_URL}icons/visiflow.svg`} alt="" /></div><div><strong>VisiFlow</strong><span>Application request atlas</span></div></div>
         <nav className="view-tabs" aria-label="Views">
           <button className={view === 'map' ? 'active' : ''} onClick={() => setView('map')} aria-current={view === 'map' ? 'page' : undefined}><span>⌘</span> App map</button>
           <button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')} aria-current={view === 'catalog' ? 'page' : undefined}><span>◦</span> Components</button>
@@ -109,7 +109,7 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls 
       <main className={`main-layout view-${view}`}>
         {view === 'map' && <aside className={`filter-sidebar ${filtersOpen ? 'expanded' : 'collapsed'}`} aria-label="View filters">
           <button className="filter-sidebar-toggle" type="button" aria-expanded={filtersOpen} aria-label={filtersOpen ? 'Collapse view filters' : 'Expand view filters'} onClick={() => setFiltersOpen((open) => !open)}>
-            <span aria-hidden="true">☷</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" /></svg>
             {filtersOpen && <><strong>View controls</strong><small>{view === 'map' ? 'Canvas' : 'Inventory'}</small></>}
             {!filtersOpen && hasActiveFilters && <i className="filter-active-dot" aria-label="Filters active" />}
           </button>

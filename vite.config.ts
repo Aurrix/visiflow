@@ -1,8 +1,7 @@
 import { cp, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
-import react, { reactCompilerPreset } from '@vitejs/plugin-react'
-import babel from '@rolldown/plugin-babel'
+import react from '@vitejs/plugin-react'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 
 // https://vite.dev/config/
@@ -19,10 +18,12 @@ export default defineConfig(() => {
   return {
     plugins: [
       react(),
-      babel({ presets: [reactCompilerPreset()] }),
       viteSingleFile({ removeViteModuleLoader: true }),
       schemaArtifact,
     ],
+    resolve: {
+      dedupe: ['react', 'react-dom'],
+    },
     build: {
       assetsInlineLimit: Number.MAX_SAFE_INTEGER,
       cssCodeSplit: false,

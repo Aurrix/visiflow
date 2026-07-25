@@ -56,7 +56,7 @@ function ProjectLaunch({ loading, errors, projectUrl, recent, onProjectUrl, onOp
   onOpenDemo: () => void
 }) {
   return <main className="project-launch">
-    <div className="brand-mark"><i /><i /><i /></div>
+    <div className="brand-mark"><img src={`${import.meta.env.BASE_URL}icons/visiflow.svg`} alt="" /></div>
     <p className="eyebrow">Application request atlas</p>
     <h1>{loading ? 'Loading VisiFlow project…' : 'Open a VisiFlow project'}</h1>
     <p>Choose a recent local project, open a folder, or continue with the demo.</p>

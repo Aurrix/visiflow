@@ -14,6 +14,19 @@ export const visualStyleSchema = z.object({
   imageFit: z.enum(['cover', 'contain', 'fill']).optional(),
   imagePosition: z.string().optional(),
   imageOpacity: z.number().min(0).max(1).optional(),
+  screenCrop: z.object({ x: z.number().min(0), y: z.number().min(0), width: z.number().positive(), height: z.number().positive() }).optional(),
+  textureCrop: z.object({ textureId: idSchema, x: z.number().min(0), y: z.number().min(0), width: z.number().positive(), height: z.number().positive() }).optional(),
+})
+
+export const textureLayerSchema = z.object({
+  id: idSchema,
+  name: z.string().min(1),
+  src: z.string().min(1),
+  x: z.number(),
+  y: z.number(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  order: z.number().int(),
 })
 
 export const appSchema = z.object({
@@ -123,6 +136,7 @@ export const runtimeConfigSchema = z.object({
   schemaVersion: z.literal(2),
   app: appSchema,
   screens: z.array(screenSchema).min(1),
+  textureLayers: z.array(textureLayerSchema).default([]),
   components: z.array(componentSchema),
   tasks: z.array(taskSchema),
   systems: z.array(systemSchema),
@@ -138,6 +152,7 @@ export const runtimeConfigSchema = z.object({
     })
   }
   unique(value.screens, 'screens')
+  unique(value.textureLayers, 'textureLayers')
   unique(value.components, 'components')
   unique(value.tasks, 'tasks')
   unique(value.systems, 'systems')
@@ -147,10 +162,16 @@ export const runtimeConfigSchema = z.object({
   const screenIds = new Set(value.screens.map((item) => item.id))
   const screenById = new Map(value.screens.map((item) => [item.id, item]))
   const componentIds = new Set(value.components.map((item) => item.id))
+  const textureIds = new Set(value.textureLayers.map((item) => item.id))
   const taskIds = new Set(value.tasks.map((item) => item.id))
   const systemIds = new Set(value.systems.map((item) => item.id))
   const scenarioIds = new Set(value.scenarios.map((item) => item.id))
   if (!screenIds.has(value.app.initialScreenId)) context.addIssue({ code: 'custom', message: 'Unknown initial screen', path: ['app', 'initialScreenId'] })
+  value.components.forEach((component, index) => {
+    if (component.visual.textureCrop && !textureIds.has(component.visual.textureCrop.textureId)) {
+      context.addIssue({ code: 'custom', message: 'Unknown texture layer', path: ['components', index, 'visual', 'textureCrop', 'textureId'] })
+    }
+  })
   if (value.initialScenarioId && !scenarioIds.has(value.initialScenarioId)) context.addIssue({ code: 'custom', message: 'Unknown initial scenario', path: ['initialScenarioId'] })
   value.screens.forEach((screen, index) => {
     if (!screen.parentId) return

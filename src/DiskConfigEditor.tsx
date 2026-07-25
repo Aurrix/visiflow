@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { registerProjectAssetSource } from './assets'
 import { parseConfig } from './config'
 import { EditorCanvas, type Bounds } from './components/EditorCanvas'
+import { TextureCanvas } from './components/TextureCanvas'
 import { ScreenTree } from './components/ScreenTree'
 import { scaledContentHeight } from './editor-utils'
 import {
@@ -95,6 +96,7 @@ function ComponentCalls({ config, component, workspace, commit, onAssignOwner, o
   onAssignOwner: (connectionId: string, componentId: string) => void
   onSelectComponent: (componentId: string) => void
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false)
   const related = config.connections.filter((connection) =>
     (connection.source.kind === 'component' && connection.source.id === component.id) ||
     (connection.target.kind === 'component' && connection.target.id === component.id),
@@ -107,8 +109,8 @@ function ComponentCalls({ config, component, workspace, commit, onAssignOwner, o
   const ownerFor = (connection: Connection) => workspace.connectionOwners.get(connection.id) ??
     (connection.source.kind === 'component' ? connection.source.id : connection.target.kind === 'component' ? connection.target.id : undefined)
 
-  const addCall = () => {
-    const peer = peerOptions[0]
+  const addCall = (peerValue: string) => {
+    const peer = peerOptions.find((option) => option.value === peerValue)
     if (!peer) return
     const id = uniqueId(`${component.id}-call`, config.connections.map((connection) => connection.id))
     commit((draft) => draft.connections.push({
@@ -121,10 +123,12 @@ function ComponentCalls({ config, component, workspace, commit, onAssignOwner, o
       ...(peer.value.startsWith('task:') ? {} : { cadence: { kind: 'user-event' as const, label: 'On user action' } }),
     }))
     onAssignOwner(id, component.id)
+    setPickerOpen(false)
   }
 
   return <section className="component-calls wide">
-    <header><div><strong>Calls and endpoints</strong><span>{related.length} related request path{related.length === 1 ? '' : 's'}</span></div><button type="button" className="secondary-button" onClick={addCall} disabled={!peerOptions.length}>Add call</button></header>
+    <header><div><strong>Calls and endpoints</strong><span>{related.length} related request path{related.length === 1 ? '' : 's'}</span></div><button type="button" className="secondary-button" onClick={() => setPickerOpen((open) => !open)} disabled={!peerOptions.length}>Add call</button></header>
+    {pickerOpen && <div className="call-target-picker"><strong>Choose a target</strong>{peerOptions.map((peer) => <button type="button" key={peer.value} onClick={() => addCall(peer.value)}>{peer.label}</button>)}</div>}
     {!related.length && <p>No calls are declared for this component.</p>}
     {related.map((connection) => {
       const owner = ownerFor(connection)
@@ -216,21 +220,39 @@ export function DiskConfigEditor({
   onPersistBoundary,
 }: DiskConfigEditorProps) {
   const [drawMode, setDrawMode] = useState(false)
+  const [workspaceView, setWorkspaceView] = useState<'arrange' | 'textures' | 'components' | 'architecture'>('arrange')
+  const [selectedTextureId, setSelectedTextureId] = useState<string | null>(null)
   const validation = useMemo(() => parseConfig(config), [config])
   const screen = config.screens.find((item) => item.id === screenId) ?? config.screens[0]
   const scenario = config.scenarios.find((item) => item.id === scenarioId) ?? config.scenarios[0]
   const commit = onCommit
   const mutateWorkspace = onWorkspaceChange
 
-  const stageEditorAsset = (file: File, kind: 'screen' | 'component', id: string, state?: 'active' | 'inactive') => {
+  const stageEditorAsset = (file: File, kind: 'screen' | 'component' | 'texture', id: string, state?: 'active' | 'inactive') => {
     const path = assetPathFor(file, kind, id, state)
     const source = URL.createObjectURL(file)
     registerProjectAssetSource(path, source)
     mutateWorkspace((draft) => stageAsset(draft, path, file))
     return path
   }
-  const undo = () => { onUndo(); onPersistBoundary() }
-  const redo = () => { onRedo(); onPersistBoundary() }
+  const undo = useCallback(() => { onUndo(); onPersistBoundary() }, [onPersistBoundary, onUndo])
+  const redo = useCallback(() => { onRedo(); onPersistBoundary() }, [onPersistBoundary, onRedo])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return
+      if (event.key.toLowerCase() === 's') { event.preventDefault(); onPersistBoundary(); return }
+      if (event.key.toLowerCase() === 'z') {
+        event.preventDefault()
+        if (event.shiftKey) redo()
+        else undo()
+        return
+      }
+      if (event.key.toLowerCase() === 'y') { event.preventDefault(); redo() }
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [onPersistBoundary, onRedo, onUndo, redo, undo])
 
   const selectScreen = (id: string) => {
     onScreen(id)
@@ -293,22 +315,47 @@ export function DiskConfigEditor({
     onSelection({ kind, id: createdId })
   }
 
-  const createComponent = (bounds: Bounds) => {
+  const createComponent = (bounds: Bounds, targetScreen = screen) => {
     let id = ''
     commit((draft) => {
       id = uniqueId('new-component', draft.components.map((item) => item.id))
       draft.components.push({
         id,
-        screenId: screen.id,
+        screenId: targetScreen.id,
         name: 'New component',
         type: 'Region',
         description: '',
         defaultState: 'active',
-        visual: { kind: 'hotspot', ...bounds },
+        visual: targetScreen.backgroundImage ? { kind: 'image', ...bounds, screenCrop: { ...bounds } } : { kind: 'hotspot', ...bounds },
       })
     })
     onSelection({ kind: 'component', id })
     setDrawMode(false)
+  }
+
+  const addTexture = (image: Awaited<ReturnType<typeof readImage>>) => {
+    let id = ''
+    commit((draft) => {
+      id = uniqueId('texture', draft.textureLayers.map((item) => item.id))
+      const order = Math.max(-1, ...draft.textureLayers.map((item) => item.order)) + 1
+      const width = Math.min(900, image.width)
+      const height = Math.round(image.height * width / image.width)
+      draft.textureLayers.push({ id, name: image.file.name.replace(/\.[^.]+$/, '') || 'Texture', src: stageEditorAsset(image.file, 'texture', id), x: 40 + order * 28, y: 40 + order * 28, width, height, order })
+    })
+    setSelectedTextureId(id)
+  }
+
+  const deleteSelectedTexture = () => {
+    if (!selectedTextureId) return
+    const affected = config.components.filter((item) => item.visual.textureCrop?.textureId === selectedTextureId)
+    if (!window.confirm(`Remove this texture layer${affected.length ? ` and detach ${affected.length} component texture${affected.length === 1 ? '' : 's'}` : ''}? Baked component images will be kept.`)) return
+    commit((draft) => {
+      draft.textureLayers = draft.textureLayers.filter((item) => item.id !== selectedTextureId)
+      draft.components.forEach((item) => {
+        if (item.visual.textureCrop?.textureId === selectedTextureId) delete item.visual.textureCrop
+      })
+    })
+    setSelectedTextureId(null)
   }
 
   const duplicateComponent = () => {
@@ -458,8 +505,10 @@ export function DiskConfigEditor({
     onSelection(selection.kind === 'screen' && fallback ? { kind: 'screen', id: fallback } : { kind: 'app' })
   }
 
-  const entityGroups: { kind: Exclude<EntityKind, 'app' | 'screen'>; label: string; items: { id: string; name: string }[] }[] = [
+  const designGroups: { kind: Exclude<EntityKind, 'app' | 'screen'>; label: string; items: { id: string; name: string }[] }[] = [
     { kind: 'component', label: 'Components', items: config.components.filter((item) => item.screenId === screen.id) },
+  ]
+  const architectureGroups: { kind: Exclude<EntityKind, 'app' | 'screen'>; label: string; items: { id: string; name: string }[] }[] = [
     { kind: 'task', label: 'Tasks', items: config.tasks },
     { kind: 'system', label: 'Systems', items: config.systems },
     { kind: 'connection', label: 'Connections', items: config.connections },
@@ -470,23 +519,12 @@ export function DiskConfigEditor({
     <div className="disk-editor" onBlurCapture={(event) => {
       if ((event.target as HTMLElement).matches('input:not([type="file"]), textarea, select')) onPersistBoundary()
     }} onKeyDown={(event) => {
-      if (event.key === 'Escape') {
-        setDrawMode(false)
-        return
-      }
-      if (!(event.ctrlKey || event.metaKey)) return
-      if (event.key.toLowerCase() === 's') { event.preventDefault(); onPersistBoundary() }
-      if (event.key.toLowerCase() === 'z') {
-        event.preventDefault()
-        if (event.shiftKey) redo()
-        else undo()
-      }
-      if (event.key.toLowerCase() === 'y') { event.preventDefault(); redo() }
+      if (event.key === 'Escape') setDrawMode(false)
     }}>
       <header className="disk-editor-toolbar">
-        <div className="disk-editor-brand"><div className="brand-mark"><i /><i /><i /></div><div><strong>VisiFlow Project Editor</strong><span>{workspace.manifestPath}{dirty ? ' • modified' : ''}</span></div></div>
+        <div className="disk-editor-brand"><div className="brand-mark"><img src={`${import.meta.env.BASE_URL}icons/visiflow.svg`} alt="" /></div><div><strong>VisiFlow Project Editor</strong><span>{workspace.manifestPath}{dirty ? ' • modified' : ''}</span></div></div>
         <div className="disk-editor-actions">
-          <div className="disk-editor-app-identity"><span className="app-avatar">{config.app.name.slice(0, 1)}</span><strong>{config.app.name}</strong></div>
+          <div className="disk-editor-app-identity"><span className="app-avatar">{config.app.name.slice(0, 1)}</span><span><strong>{config.app.name}</strong><small>{config.app.platform}</small></span></div>
           {toolbarExtras}
           <button type="button" className="icon-button editor-undo" onClick={undo} disabled={!canUndo} aria-label="Undo">↶</button>
           <button type="button" className="icon-button editor-redo" onClick={redo} disabled={!canRedo} aria-label="Redo">↷</button>
@@ -500,24 +538,32 @@ export function DiskConfigEditor({
         <span className="disk-editor-shortcut">Ctrl/⌘ + S · Ctrl/⌘ + Z</span>
       </div>
 
-      <main className="visual-editor-workspace" onClickCapture={onPersistBoundary}>
+      <main className={`visual-editor-workspace workspace-${workspaceView}`} onClickCapture={onPersistBoundary}>
         <aside className="entity-browser">
-          <button className={`entity-app${selection.kind === 'app' ? ' selected' : ''}`} onClick={() => onSelection({ kind: 'app' })}><span className="app-avatar">{config.app.name.slice(0, 1)}</span><span><strong>{config.app.name}</strong><small>App settings</small></span></button>
+          <div className="editor-workspace-switch"><button type="button" className={workspaceView === 'arrange' ? 'active' : ''} onClick={() => setWorkspaceView('arrange')}>Arrange</button><button type="button" className={workspaceView === 'textures' ? 'active' : ''} onClick={() => setWorkspaceView('textures')}>Textures</button><button type="button" className={workspaceView === 'components' ? 'active' : ''} onClick={() => setWorkspaceView('components')}>Components</button><button type="button" className={workspaceView === 'architecture' ? 'active' : ''} onClick={() => setWorkspaceView('architecture')}>Architecture</button></div>
+          {workspaceView === 'arrange' && <><button className={`entity-app${selection.kind === 'app' ? ' selected' : ''}`} onClick={() => onSelection({ kind: 'app' })}><span className="app-avatar">{config.app.name.slice(0, 1)}</span><span><strong>{config.app.name}</strong><small>App settings</small></span></button>
           <section className="editor-screen-tree">
             <header><span>Screens</span><button type="button" onClick={() => addEntity('screen')} aria-label="Add screen">+</button></header>
             <ScreenTree screens={config.screens} activeId={screenId} onSelect={selectScreen} />
-          </section>
-          {entityGroups.map((group) => <section key={group.kind}>
-            <header><span>{group.label}</span><button type="button" onClick={() => addEntity(group.kind)} aria-label={`Add ${group.kind}`}>+</button></header>
+          </section></>}
+          {(workspaceView === 'arrange' ? designGroups : workspaceView === 'textures' ? [{ kind: 'component' as const, label: 'Components', items: config.components.map((item) => ({ id: item.id, name: item.name })) }] : workspaceView === 'components' ? [{ kind: 'component' as const, label: 'Components', items: config.components.map((item) => ({ id: item.id, name: item.name })) }, ...architectureGroups.filter((group) => group.kind !== 'scenario')] : architectureGroups).map((group) => <section key={group.kind}>
+            <header><span>{group.label}</span>{group.kind !== 'connection' && <button type="button" onClick={() => addEntity(group.kind)} aria-label={`Add ${group.kind}`}>+</button>}</header>
             <div>{group.items.map((item) => <button
               key={item.id}
+              draggable={workspaceView === 'textures' && group.kind === 'component'}
               className={selection.kind === group.kind && selection.id === item.id ? 'selected' : ''}
+              onDragStart={(event) => {
+                if (workspaceView !== 'textures' || group.kind !== 'component') return
+                event.dataTransfer.effectAllowed = 'copy'
+                event.dataTransfer.setData('application/x-visiflow-component', item.id)
+              }}
               onClick={() => {
                 if (group.kind === 'component') onScreen(config.components.find((component) => component.id === item.id)?.screenId ?? screenId)
                 onSelection({ kind: group.kind, id: item.id })
               }}
             ><span>{item.name}</span><small>{item.id}</small></button>)}</div>
           </section>)}
+          {workspaceView === 'textures' && <section><header><span>Texture layers</span></header><div>{config.textureLayers.map((layer) => <button key={layer.id} className={selectedTextureId === layer.id ? 'selected' : ''} onClick={() => setSelectedTextureId(layer.id)}><span>{layer.name}</span><small>{layer.id}</small></button>)}</div></section>}
         </aside>
 
         <section className="authoring-stage">
@@ -525,29 +571,62 @@ export function DiskConfigEditor({
             <div><strong>{screen.name}</strong><span>{screen.width} × {screen.height}{screen.contentHeight && screen.contentHeight > screen.height ? ` · ${screen.contentHeight}px content` : ''}</span></div>
             <div>
               <label><span>Scenario</span><select value={scenario.id} onChange={(event) => onScenario(event.target.value)}>{config.scenarios.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-              <button type="button" className={drawMode ? 'primary-button active' : 'secondary-button'} onClick={() => setDrawMode((value) => !value)}>＋ Draw component</button>
+               {workspaceView === 'arrange' && <ImageButton label={screen.backgroundImage ? 'Replace screenshot' : 'Import screenshot'} onComplete={onPersistBoundary} onImage={(image) => commit((draft) => {
+                const target = draft.screens.find((value) => value.id === screen.id)!
+                target.backgroundImage = stageEditorAsset(image.file, 'screen', screen.id)
+                target.backgroundSize = '100% auto'
+                target.backgroundPosition = 'top center'
+                target.contentHeight = Math.max(target.height, scaledContentHeight(target.width, image.width, image.height))
+               })} />}
+               {workspaceView === 'textures' && <ImageButton label="Import texture" onComplete={onPersistBoundary} onImage={addTexture} />}
+               {workspaceView === 'textures' && selectedTextureId && <button type="button" className="danger-button" onClick={deleteSelectedTexture}>Delete texture</button>}
+               {workspaceView === 'arrange' && <button type="button" className={drawMode ? 'primary-button active' : 'secondary-button'} onClick={() => setDrawMode((value) => !value)}>＋ Draw component</button>}
             </div>
           </header>
-          <EditorCanvas
+          {workspaceView === 'arrange' ? <div className="storyboard-canvas designer-canvas"><section className="storyboard-artboard active"><header><strong>{screen.name}</strong><span>Viewer scroll layout</span></header><EditorCanvas
             config={config}
             screen={screen}
             scenario={scenario}
             selectedComponentId={selection.kind === 'component' ? selection.id : undefined}
             drawMode={drawMode}
+            showBackground={false}
             onCancelDraw={() => setDrawMode(false)}
             onSelect={(id) => onSelection({ kind: 'component', id })}
             onCreate={(bounds) => { createComponent(bounds); onPersistBoundary() }}
-            onBounds={(id, bounds) => {
+            onBounds={(id, bounds, borderRadius) => {
               commit((draft) => {
                 const item = draft.components.find((value) => value.id === id)
                 if (item) {
                   Object.assign(item.visual, bounds)
+                  if (borderRadius !== undefined) {
+                    item.visual.borderRadius = borderRadius
+                    Object.values(item.visual.states ?? {}).forEach((state) => delete state.borderRadius)
+                  }
                   delete item.visual.layout
                 }
               })
               onPersistBoundary()
             }}
-          />
+          /></section></div> : workspaceView === 'textures' ? <TextureCanvas layers={config.textureLayers} components={config.components} selectedComponentId={selection.kind === 'component' ? selection.id : undefined} onSelectComponent={(id) => onSelection({ kind: 'component', id })} onSelectLayer={setSelectedTextureId} onPaste={(file) => { void readImage(file).then(addTexture) }} onMoveLayer={(id, point) => commit((draft) => {
+            const layer = draft.textureLayers.find((item) => item.id === id)
+            if (layer) Object.assign(layer, point)
+          })} onResize={(componentId, textureId, crop, borderRadius) => commit((draft) => {
+            const item = draft.components.find((value) => value.id === componentId)
+            if (!item) return
+            item.visual.textureCrop = { textureId, ...crop }
+            if (borderRadius !== undefined) {
+              item.visual.borderRadius = borderRadius
+              Object.values(item.visual.states ?? {}).forEach((state) => delete state.borderRadius)
+            }
+          })} onBind={(componentId, textureId, crop) => {
+            commit((draft) => {
+              const item = draft.components.find((value) => value.id === componentId)
+              if (!item) return
+              item.visual.textureCrop = { textureId, ...crop }
+              item.visual.kind = 'image'
+            })
+            onPersistBoundary()
+          }} /> : workspaceView === 'components' ? <div className="component-editor-stage"><header><span>Component editor</span><strong>Connect components to tasks and systems</strong><p>Select a component, then use <em>Add call</em> in the inspector to create and configure its request path.</p></header><div className="component-editor-nodes">{config.components.map((item) => <button type="button" key={item.id} className={selection.kind === 'component' && selection.id === item.id ? 'selected' : ''} onClick={() => onSelection({ kind: 'component', id: item.id })}><small>{config.screens.find((screen) => screen.id === item.screenId)?.name ?? item.screenId}</small><strong>{item.name}</strong><span>{item.type}</span></button>)}{config.tasks.map((item) => <button type="button" key={item.id} className="endpoint-node task" onClick={() => onSelection({ kind: 'task', id: item.id })}><small>Task</small><strong>{item.name}</strong></button>)}{config.systems.map((item) => <button type="button" key={item.id} className="endpoint-node system" onClick={() => onSelection({ kind: 'system', id: item.id })}><small>System</small><strong>{item.name}</strong></button>)}</div></div> : <div className="architecture-stage"><div><span>Architecture workspace</span><strong>Tasks, systems, and connections</strong><p>Select an item from the sidebar to edit its runtime details. New request paths are created from a component’s <em>Add call</em> action.</p></div></div>}
         </section>
 
         <aside className="property-inspector">
@@ -686,6 +765,7 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
       <Field label="Documentation (Markdown)" wide><textarea value={item.description} onChange={(event) => update((value) => { value.description = event.target.value })} /></Field>
       {visualMode === 'image' && <div className="inspector-action-row wide"><ImageButton label={item.visual.src ? 'Replace component image' : 'Import component image'} onComplete={onPersistBoundary} onImage={(image) => update((value) => { value.visual.src = onStageAsset(image.file, 'component', item.id); value.visual.imageFit = 'cover' })} /></div>}
       {visualMode === 'image' && <>
+        {item.visual.screenCrop && <div className="editor-note wide">This component uses a locked crop from the screen screenshot. Move or resize the component without changing its texture.</div>}
         <Field label="Image fit"><select value={item.visual.imageFit ?? 'cover'} onChange={(event) => update((value) => { value.visual.imageFit = event.target.value as 'cover' | 'contain' | 'fill' })}><option>cover</option><option>contain</option><option>fill</option></select></Field>
         <Field label="Image position"><input value={item.visual.imagePosition ?? 'center'} onChange={(event) => update((value) => { value.visual.imagePosition = event.target.value })} /></Field>
         <Field label="Image opacity"><input type="number" min="0" max="1" step=".05" value={item.visual.imageOpacity ?? 1} onChange={(event) => update((value) => { value.visual.imageOpacity = number(event.target.value, 1) })} /></Field>

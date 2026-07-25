@@ -1,4 +1,5 @@
 import { serializeVisiFlowMarkdown } from './project-format'
+import { bakeTextureCrops } from './texture-baker'
 import type { ProjectDirectoryHandle } from './project-loader'
 import type {
   ComponentCall,
@@ -20,8 +21,8 @@ const extensionFor = (file: File) => {
   return 'png'
 }
 
-export function assetPathFor(file: File, kind: 'screen' | 'component', id: string, state?: 'active' | 'inactive') {
-  const folder = kind === 'screen' ? 'screens' : 'components'
+export function assetPathFor(file: File, kind: 'screen' | 'component' | 'texture', id: string, state?: 'active' | 'inactive') {
+  const folder = kind === 'screen' ? 'screens' : kind === 'texture' ? 'textures' : 'components'
   const suffix = state ? `-${state}` : ''
   return `assets/${folder}/${id}${suffix}.${extensionFor(file)}`
 }
@@ -160,6 +161,7 @@ export function synchronizeWorkspace(workspace: ProjectWorkspace, config: VisiFl
   }
 
   next.manifest.connections = config.connections.filter((connection) => !next.connectionOwners.has(connection.id)).map((connection) => structuredClone(connection))
+  next.manifest.textureLayers = structuredClone(config.textureLayers)
   next.manifest.componentFiles = [...next.components.values()].map((document) => document.path).sort()
   return next
 }
@@ -190,8 +192,9 @@ export async function saveProjectWorkspace(workspace: ProjectWorkspace, config: 
     return { ok: false, errors: ['This project is read-only. Open its folder in the editor to save changes.'] }
   }
   const root = workspace.directoryHandle as ProjectDirectoryHandle
-  const synchronized = synchronizeWorkspace(workspace, config)
   try {
+    await bakeTextureCrops(config)
+    const synchronized = synchronizeWorkspace(workspace, config)
     for (const [path, file] of synchronized.pendingAssets) await writeFile(root, path, file)
     for (const document of synchronized.components.values()) {
       await writeFile(root, document.path, serializeVisiFlowMarkdown(document.meta, document.body))

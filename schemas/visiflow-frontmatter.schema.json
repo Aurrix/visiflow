@@ -123,6 +123,57 @@
             "additionalProperties": false
           }
         },
+        "textureLayers": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "src": {
+                "type": "string",
+                "minLength": 1
+              },
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "order": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "src",
+              "x",
+              "y",
+              "width",
+              "height",
+              "order"
+            ],
+            "additionalProperties": false
+          }
+        },
         "tasks": {
           "type": "array",
           "items": {
@@ -465,6 +516,7 @@
         "kind",
         "app",
         "screens",
+        "textureLayers",
         "tasks",
         "systems",
         "scenarios",
@@ -555,6 +607,67 @@
               "type": "number",
               "minimum": 0,
               "maximum": 1
+            },
+            "screenCrop": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "width",
+                "height"
+              ],
+              "additionalProperties": false
+            },
+            "textureCrop": {
+              "type": "object",
+              "properties": {
+                "textureId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "x": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "textureId",
+                "x",
+                "y",
+                "width",
+                "height"
+              ],
+              "additionalProperties": false
             },
             "kind": {
               "type": "string",
@@ -664,6 +777,67 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1
+                    },
+                    "screenCrop": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "y": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "height": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y",
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "textureCrop": {
+                      "type": "object",
+                      "properties": {
+                        "textureId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "x": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "y": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "height": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": [
+                        "textureId",
+                        "x",
+                        "y",
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "additionalProperties": false
@@ -710,6 +884,67 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1
+                    },
+                    "screenCrop": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "y": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "height": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y",
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "textureCrop": {
+                      "type": "object",
+                      "properties": {
+                        "textureId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "x": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "y": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "height": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": [
+                        "textureId",
+                        "x",
+                        "y",
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "additionalProperties": false

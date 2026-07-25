@@ -5,6 +5,21 @@ export function PwaUpdatePrompt() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
 
   useEffect(() => {
+    // A cache-first service worker must never control Vite's development
+    // modules: it can serve an outdated transform and prevents HMR from
+    // connecting. Remove any worker registered by an earlier dev session.
+    if (import.meta.env.DEV) {
+      void navigator.serviceWorker?.getRegistrations().then((registrations) => {
+        registrations.forEach((item) => { void item.unregister() })
+      })
+      void window.caches?.keys().then((keys) => {
+        keys
+          .filter((key) => key.startsWith('visiflow-shell-'))
+          .forEach((key) => { void window.caches.delete(key) })
+      })
+      return
+    }
+
     if (!window.isSecureContext || !('serviceWorker' in navigator)) return
 
     let active = true

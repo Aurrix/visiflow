@@ -147,9 +147,82 @@ describe('visual config editor', () => {
     expect(screen.getByLabelText('Width')).toHaveValue(130)
   })
 
+  it('undos a component resize through the global Ctrl/Command + Z shortcut', () => {
+    const { container } = renderEditor()
+    const canvas = container.querySelector('.editor-screen-canvas') as HTMLDivElement
+    Object.defineProperty(canvas, 'getBoundingClientRect', {
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 390, bottom: 844, width: 390, height: 844, toJSON: () => ({}) }),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Pay buttonbutton/i }))
+    const resizeHandle = screen.getByRole('button', { name: 'Resize Pay button' })
+    fireEvent.pointerDown(resizeHandle, { pointerId: 1, clientX: 120, clientY: 120 })
+    fireEvent.pointerUp(resizeHandle, { pointerId: 1, clientX: 180, clientY: 160 })
+
+    expect(screen.getByLabelText('Width')).toHaveValue(160)
+    expect(fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })).toBe(false)
+    expect(screen.getByLabelText('Width')).toHaveValue(100)
+  })
+
+  it('uses Ctrl-resize to update the shared radius instead of leaving a state override active', () => {
+    const project = editorProject()
+    const component = project.config.components[0]
+    component.visual.states = { active: { borderRadius: 6 }, inactive: { borderRadius: 18 } }
+    project.config.scenarios[0].componentStates[component.id] = 'active'
+    const { container } = renderEditor(project)
+    const canvas = container.querySelector('.editor-screen-canvas') as HTMLDivElement
+    Object.defineProperty(canvas, 'getBoundingClientRect', {
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 390, bottom: 844, width: 390, height: 844, toJSON: () => ({}) }),
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Pay buttonbutton/i }))
+    const resizeHandle = screen.getByRole('button', { name: 'Resize Pay button' })
+    fireEvent.pointerDown(resizeHandle, { pointerId: 1, clientX: 120, clientY: 120 })
+    fireEvent.pointerMove(resizeHandle, { pointerId: 1, clientX: 180, clientY: 120, ctrlKey: true })
+    fireEvent.pointerUp(resizeHandle, { pointerId: 1, clientX: 180, clientY: 120, ctrlKey: true })
+
+    expect(screen.getByLabelText('Radius')).toHaveValue(20)
+    expect((container.querySelector('.editor-component-box.selected') as HTMLDivElement).style.borderRadius).toBe('20px')
+  })
+
+  it('uses Ctrl-resize for radius mode on a texture overlay', () => {
+    const project = editorProject()
+    const component = project.config.components[0]
+    project.config.textureLayers = [{ id: 'ride-texture', name: 'Ride texture', src: 'data:image/png;base64,', x: 0, y: 0, width: 390, height: 844, order: 0 }]
+    component.visual.textureCrop = { textureId: 'ride-texture', x: 20, y: 30, width: 160, height: 80 }
+    const { container } = renderEditor(project)
+    fireEvent.click(screen.getByRole('button', { name: 'Textures' }))
+    fireEvent.click(screen.getByRole('button', { name: /Pay buttonbutton/i }))
+    const board = container.querySelector('.texture-canvas') as HTMLDivElement
+    Object.defineProperty(board, 'getBoundingClientRect', {
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 960, bottom: 900, width: 960, height: 900, toJSON: () => ({}) }),
+    })
+    const handle = container.querySelector('.texture-resize-handle') as HTMLElement
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: 120, clientY: 120 })
+    fireEvent.pointerMove(board, { pointerId: 1, clientX: 180, clientY: 120, ctrlKey: true })
+    fireEvent.pointerUp(board, { pointerId: 1, clientX: 180, clientY: 120, ctrlKey: true })
+
+    expect(screen.getByLabelText('Radius')).toHaveValue(40)
+    expect(screen.getByLabelText('Width')).toHaveValue(100)
+
+    const textureComponent = container.querySelector('.texture-component') as HTMLElement
+    fireEvent.pointerDown(textureComponent, { pointerId: 2, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(board, { pointerId: 2, clientX: 240, clientY: 180 })
+    fireEvent.pointerUp(board, { pointerId: 2, clientX: 240, clientY: 180 })
+
+    expect((container.querySelector('.texture-component') as HTMLElement).style.width).toBe('160px')
+    expect(screen.getByLabelText('Width')).toHaveValue(100)
+
+    fireEvent.pointerDown(handle, { pointerId: 3, clientX: 120, clientY: 120 })
+    fireEvent.pointerMove(board, { pointerId: 3, clientX: 330, clientY: 200 })
+    fireEvent.pointerUp(board, { pointerId: 3, clientX: 330, clientY: 200 })
+
+    expect(screen.getByLabelText('Width')).toHaveValue(100)
+  })
+
   it('confirms and cascades deletion of referenced systems', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     renderEditor()
+    fireEvent.click(screen.getByRole('button', { name: 'Architecture' }))
     fireEvent.click(screen.getByRole('button', { name: 'Payment APIapi' }))
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     expect(screen.queryByRole('button', { name: 'Payment APIapi' })).not.toBeInTheDocument()
@@ -158,6 +231,7 @@ describe('visual config editor', () => {
 
   it('creates and edits first-class background tasks', () => {
     renderEditor()
+    fireEvent.click(screen.getByRole('button', { name: 'Architecture' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
     expect(screen.getByRole('heading', { name: 'New task' })).toBeInTheDocument()

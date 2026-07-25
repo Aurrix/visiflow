@@ -184,6 +184,24 @@ The editor stores imported files under:
 
 Relative files are preferred. `data:image/...` URLs remain valid when an image must be embedded directly into a state or component.
 
+## Texture layers
+
+Projects may define `textureLayers` in the project manifest. A texture layer is a reusable, positioned source image for editor-only crop authoring:
+
+```yaml
+textureLayers:
+  - id: checkout-reference
+    name: Checkout reference
+    src: assets/textures/checkout-reference.png
+    x: 40
+    y: 40
+    width: 900
+    height: 1800
+    order: 0
+```
+
+Components can retain an editable `visual.textureCrop` with a `textureId` and crop rectangle. On save, the editor bakes that crop into `visual.src` as an inline PNG data URL, so viewer rendering does not depend on the texture board.
+
 ## Loading
 
 - The unified viewer/editor loads `demo/project.visiflow.md` read-only when hosted.

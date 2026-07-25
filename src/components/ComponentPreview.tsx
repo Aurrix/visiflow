@@ -10,6 +10,7 @@ export function ComponentPreview({ component, screen, scenario }: { component: A
   const width = Math.max(28, visual.width * scale)
   const height = Math.max(20, visual.height * scale)
   const regionCrop = visual.kind === 'hotspot' && !style.src && screen?.backgroundImage
+  const textureCrop = visual.screenCrop && screen?.backgroundImage
   const screenContentHeight = screen ? Math.max(screen.contentHeight ?? screen.height, visual.y + visual.height) : 0
   const previewStyle = {
     width,
@@ -24,7 +25,7 @@ export function ComponentPreview({ component, screen, scenario }: { component: A
   return (
     <div className="component-preview" aria-label={`${component.name} visual preview`} role="img">
       <div className={`component-preview-surface preview-${visual.kind}`} style={previewStyle}>
-        {regionCrop && <img
+        {(regionCrop || textureCrop) && <img
           className="component-preview-image component-preview-crop"
           src={resolveAssetSource(screen.backgroundImage!)}
           alt=""
@@ -32,11 +33,11 @@ export function ComponentPreview({ component, screen, scenario }: { component: A
             width: screen.width * scale,
             height: screenContentHeight * scale,
             maxWidth: 'none',
-            left: -visual.x * scale,
-            top: -visual.y * scale,
+            left: -(visual.screenCrop?.x ?? visual.x) * scale,
+            top: -(visual.screenCrop?.y ?? visual.y) * scale,
           }}
         />}
-        {style.src && <img
+        {style.src && !textureCrop && <img
           className="component-preview-image"
           src={resolveAssetSource(style.src)}
           alt=""

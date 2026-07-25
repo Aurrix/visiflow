@@ -2,7 +2,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { Selection } from '../model'
 import { componentState, componentStyle, connectionMatchesCadence, sameRef, selectionKey, taskIsVisible, taskState } from '../model'
-import type { AppComponent, BackgroundTask, Connection, Scenario, VisiFlowConfig } from '../types'
+import type { AppComponent, AppScreen, BackgroundTask, Connection, Scenario, VisiFlowConfig } from '../types'
 import { resolveAssetSource } from '../assets'
 import { resolveComponentLayout, type ComponentPosition } from '../layout'
 
@@ -20,10 +20,11 @@ interface AppMapProps {
 
 interface LineGeometry { id: string; path: string; x: number; y: number }
 
-function VisualComponent({ component, position, scenario, screenWidth, contentHeight, selected, register, onSelect }: {
+function VisualComponent({ component, position, scenario, screen, screenWidth, contentHeight, selected, register, onSelect }: {
   component: AppComponent
   position: ComponentPosition
   scenario: Scenario
+  screen: AppScreen
   screenWidth: number
   contentHeight: number
   selected: boolean
@@ -33,6 +34,7 @@ function VisualComponent({ component, position, scenario, screenWidth, contentHe
   const state = componentState(component, scenario)
   const visual = component.visual
   const style = componentStyle(component, scenario)
+  const crop = component.visual.screenCrop
   const css = {
     left: `${(position.x / screenWidth) * 100}%`,
     top: `${(position.y / contentHeight) * 100}%`,
@@ -43,6 +45,10 @@ function VisualComponent({ component, position, scenario, screenWidth, contentHe
     borderColor: style.borderColor,
     borderRadius: style.borderRadius,
     opacity: style.opacity,
+    backgroundImage: crop && screen.backgroundImage ? `url(${resolveAssetSource(screen.backgroundImage)})` : undefined,
+    backgroundSize: crop ? `${screen.width / crop.width * 100}% ${contentHeight / crop.height * 100}%` : undefined,
+    backgroundPosition: crop ? `${-crop.x / crop.width * 100}% ${-crop.y / crop.height * 100}%` : undefined,
+    backgroundRepeat: crop ? 'no-repeat' : undefined,
   } as CSSProperties
 
   const content = style.text ?? component.name
@@ -55,7 +61,7 @@ function VisualComponent({ component, position, scenario, screenWidth, contentHe
       aria-label={`${component.name}, ${state}`}
       aria-pressed={selected}
     >
-      {style.src && <img
+      {style.src && !crop && <img
         className="visual-art"
         src={resolveAssetSource(style.src)}
         alt=""
@@ -275,7 +281,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
             if (!connection) return null
             const focused = Boolean(isFocused(connection))
             const internal = connection.protocol.toLowerCase() === 'internal'
-            return <g key={line.id} className={`${focused ? 'focused' : ''}${selection && !focused ? ' dimmed' : ''}${internal ? ' internal' : ''}`}>
+            return <g key={line.id} className={`${focused ? 'focused' : ''}${internal ? ' internal' : ''}`}>
               <path className="flow-halo" d={line.path} />
               <path className="flow-path" d={line.path} markerEnd="url(#arrow)" />
               {focused && <text x={line.x} y={line.y - 8} textAnchor="middle">{connection.protocol}</text>}
@@ -300,6 +306,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
                 component={component}
                 position={componentPositions.get(component.id) ?? { x: component.visual.x, y: component.visual.y }}
                 scenario={scenario}
+                screen={screen}
                 screenWidth={screen.width}
                 contentHeight={contentHeight}
                 selected={sameRef(selection, { kind: 'component', id: component.id })}

@@ -20,6 +20,19 @@ export interface VisualStyle {
   imageFit?: 'cover' | 'contain' | 'fill'
   imagePosition?: string
   imageOpacity?: number
+  screenCrop?: { x: number; y: number; width: number; height: number }
+  textureCrop?: { textureId: string; x: number; y: number; width: number; height: number }
+}
+
+export interface TextureLayer {
+  id: string
+  name: string
+  src: string
+  x: number
+  y: number
+  width: number
+  height: number
+  order: number
 }
 
 export interface ComponentVisual extends VisualStyle {
@@ -145,6 +158,7 @@ export interface VisiFlowConfig {
     phoneBackgroundColor?: string
   }
   screens: AppScreen[]
+  textureLayers: TextureLayer[]
   components: AppComponent[]
   tasks: BackgroundTask[]
   systems: ExternalSystem[]
@@ -172,6 +186,7 @@ export interface ProjectManifestMeta {
   kind: 'project'
   app: Omit<VisiFlowConfig['app'], 'description'>
   screens: AppScreen[]
+  textureLayers?: TextureLayer[]
   tasks: BackgroundTask[]
   systems: ExternalSystem[]
   scenarios: Scenario[]

@@ -2,34 +2,34 @@
 visiflow: 2
 kind: project
 app:
-  id: orbit-demo
-  name: Orbit Demo
+  id: ride-demo
+  name: Ride demo
   platform: iOS and Android
   device: ios
-  initialScreenId: login
+  initialScreenId: choose-ride
   accent: "#7c8cff"
 screens:
-  - id: login
-    name: Login
-    group: Customer journey
+  - id: choose-ride
+    name: Choose ride
+    group: Rider journey
     order: 1
     width: 390
     height: 844
     background: "#f5f5f5"
     showSystemUi: false
-  - id: offers
-    name: Offers
-    parentId: login
+  - id: trip-progress
+    name: Trip progress
+    parentId: choose-ride
     order: 1
     width: 390
     height: 844
     background: "#f5f5f5"
     showSystemUi: false
 tasks:
-  - id: session-maintenance
-    name: Maintain application session
+  - id: rider-session
+    name: Maintain rider session
     type: Session worker
-    description: Refreshes the customer session independently of the visible screen.
+    description: Refreshes the rider session independently of the visible screen.
     scope:
       kind: app
     trigger:
@@ -48,45 +48,45 @@ tasks:
       label: Every 5 minutes
       intervalMs: 300000
     defaultState: active
-  - id: realtime-notifications
-    name: Receive live notifications
-    type: Push listener
-    description: Maintains the app-wide channel used for secure notification delivery.
+  - id: trip-status
+    name: Receive trip status
+    type: Realtime listener
+    description: Maintains the channel for driver and trip-status updates.
     scope:
       kind: app
     trigger:
       kind: push
       label: On secure message
     defaultState: active
-  - id: device-trust
-    name: Verify device trust
-    type: Security worker
-    description: Evaluates device posture while the login screen is active.
+  - id: fare-estimate
+    name: Estimate trip fares
+    type: Pricing worker
+    description: Preloads live fare estimates when ride choices open.
     scope:
       kind: screen
-      screenId: login
+      screenId: choose-ride
     trigger:
       kind: lifecycle
-      label: When the login screen opens
+      label: When ride choices open
     defaultState: active
-  - id: refresh-offers
-    name: Refresh available offers
+  - id: refresh-routes
+    name: Refresh route options
     type: Data refresh
-    description: Loads current coupon eligibility when the offers screen becomes visible.
+    description: Loads current route and ETA options when trip progress opens.
     scope:
       kind: screen
-      screenId: offers
+      screenId: trip-progress
     trigger:
       kind: lifecycle
-      label: When the offers screen opens
+      label: When trip progress opens
     defaultState: active
-  - id: prefetch-offer-assets
-    name: Prefetch offer artwork
-    type: Content worker
-    description: Warms localized offer artwork before the next campaign refresh.
+  - id: prefetch-map-tiles
+    name: Prefetch map tiles
+    type: Map worker
+    description: Warms nearby map tiles before the route refresh.
     scope:
       kind: screen
-      screenId: offers
+      screenId: trip-progress
     trigger:
       kind: scheduled
       label: Every 6 hours
@@ -94,124 +94,158 @@ tasks:
     defaultState: active
 systems:
   - id: identity-service
-    name: Customer Identity
+    name: Rider Identity
     type: OIDC service
-    description: Authenticates customers and issues application sessions.
+    description: Authenticates riders and issues application sessions.
     color: "#7c8cff"
     icon: ID
     placement: right
-  - id: offers-service
-    name: Offers Platform
+  - id: ride-marketplace
+    name: Ride Marketplace
     type: GraphQL API
-    description: Supplies available coupons and personalized offers.
+    description: Supplies available vehicles, fares, and route options.
     color: "#55d99d"
     icon: "%"
     placement: right
   - id: risk-engine
-    name: Device Risk Engine
+    name: Driver matching engine
     type: gRPC service
-    description: Evaluates device integrity and account risk signals.
+    description: Matches nearby drivers and evaluates live trip availability.
     color: "#ff9f68"
     icon: RX
     placement: left
   - id: event-stream
-    name: Analytics Stream
+    name: Trip analytics stream
     type: Kafka cluster
-    description: Receives batched product and reliability events.
+    description: Receives privacy-filtered trip and rider events.
     color: "#e3b85c"
     icon: K
     placement: left
   - id: notification-hub
-    name: Notification Hub
+    name: Driver update hub
     type: Realtime gateway
-    description: Delivers secure account and offer notifications.
+    description: Delivers driver arrival and trip-status notifications.
     color: "#5dc9e8"
     icon: WS
     placement: right
   - id: content-delivery
-    name: Campaign CDN
+    name: Map tile CDN
     type: Edge cache
-    description: Serves localized artwork and campaign media.
+    description: Serves map, route, and vehicle imagery.
     color: "#c68cff"
     icon: CDN
     placement: left
 scenarios:
   - id: normal
     name: Normal operation
-    screenId: login
+    screenId: choose-ride
     componentStates: {}
     taskStates: {}
-  - id: signed-out
-    name: Signed out
-    screenId: login
+  - id: rider-ready
+    name: Rider ready
+    screenId: choose-ride
     componentStates:
-      login-card: active
+      ride-card: active
     taskStates:
-      session-maintenance: inactive
-      realtime-notifications: inactive
-  - id: offers-degraded
-    name: Offers degraded
-    screenId: offers
+      rider-session: inactive
+      trip-status: inactive
+  - id: route-delayed
+    name: Route delayed
+    screenId: trip-progress
     componentStates:
-      coupons-card: inactive
+      route-card: inactive
     taskStates:
-      refresh-offers: inactive
-      prefetch-offer-assets: inactive
+      refresh-routes: inactive
+      prefetch-map-tiles: inactive
 initialScenarioId: normal
 componentFiles:
   - screens/login/login-card.visiflow.md
   - screens/offers/coupons-card.visiflow.md
+  - screens/offers/new-component.visiflow.md
 connections:
-  - id: refresh-session
-    name: Refresh application session
-    source: { kind: task, id: session-maintenance }
-    target: { kind: system, id: identity-service }
+  - id: refresh-rider-session
+    name: Refresh rider session
+    source:
+      kind: task
+      id: rider-session
+    target:
+      kind: system
+      id: identity-service
     protocol: HTTPS
     method: POST
     endpoint: /oauth/refresh
-    description: Exchanges the refresh token for a renewed application session.
-  - id: fetch-offers
-    name: Fetch available offers
-    source: { kind: task, id: refresh-offers }
-    target: { kind: system, id: offers-service }
+    description: Exchanges the rider refresh token for a renewed application session.
+  - id: fetch-ride-options
+    name: Fetch ride options
+    source:
+      kind: task
+      id: refresh-routes
+    target:
+      kind: system
+      id: ride-marketplace
     protocol: GraphQL
     method: POST
     endpoint: /graphql
-    description: Queries current coupon eligibility and personalized offers.
-  - id: evaluate-device
-    name: Evaluate device posture
-    source: { kind: task, id: device-trust }
-    target: { kind: system, id: risk-engine }
+    description: Queries available vehicles, fares, and trip ETAs.
+  - id: match-driver
+    name: Match nearby driver
+    source:
+      kind: task
+      id: fare-estimate
+    target:
+      kind: system
+      id: risk-engine
     protocol: gRPC
     method: Check
-    endpoint: risk.v1.DeviceTrust/Evaluate
-    description: Sends attestation evidence to the device risk engine.
+    endpoint: matching.v1.Driver/Find
+    description: Requests nearby drivers and current trip availability.
   - id: publish-analytics
-    name: Publish analytics batch
-    source: { kind: task, id: analytics-delivery }
-    target: { kind: system, id: event-stream }
+    name: Publish trip analytics batch
+    source:
+      kind: task
+      id: analytics-delivery
+    target:
+      kind: system
+      id: event-stream
     protocol: Kafka
     method: PRODUCE
-    endpoint: app.events.v2
-    description: Publishes a privacy-filtered event batch.
-  - id: receive-notification
-    name: Receive live notification
-    source: { kind: system, id: notification-hub }
-    target: { kind: task, id: realtime-notifications }
+    endpoint: trips.events.v1
+    description: Publishes a privacy-filtered trip event batch.
+  - id: receive-trip-update
+    name: Receive trip update
+    source:
+      kind: system
+      id: notification-hub
+    target:
+      kind: task
+      id: trip-status
     protocol: WebSocket
     method: MESSAGE
-    endpoint: /v2/notifications
-    description: Delivers encrypted application notifications.
-  - id: prefetch-campaign-media
-    name: Prefetch campaign media
-    source: { kind: task, id: prefetch-offer-assets }
-    target: { kind: system, id: content-delivery }
+    endpoint: /v2/trips/updates
+    description: Delivers encrypted driver and trip updates.
+  - id: prefetch-map-tiles
+    name: Prefetch map tiles
+    source:
+      kind: task
+      id: prefetch-map-tiles
+    target:
+      kind: system
+      id: content-delivery
     protocol: HTTP/2
     method: GET
-    endpoint: /campaigns/current/assets
-    description: Warms the current campaign artwork in the application cache.
+    endpoint: /maps/nearby/tiles
+    description: Warms nearby map tiles in the application cache.
+textureLayers:
+  - id: uber-overview
+    name: Uber overview
+    src: assets/uber_overview.png
+    x: 29
+    y: 32
+    width: 996
+    height: 656
+    order: 0
 ---
 
-# Orbit request map
+# Ride request map
 
-This external Markdown project demonstrates **component-owned calls**, app-wide and screen-scoped background tasks, Internal, HTTPS, GraphQL, gRPC, Kafka, WebSocket, and HTTP/2 paths, relative image assets, multiple screens, and rendered documentation without embedding configuration in the application HTML.
+This ride-hailing sample models **ride selection**, driver matching, route updates, trip analytics, map assets, and component-owned calls without embedding configuration in the application HTML.
