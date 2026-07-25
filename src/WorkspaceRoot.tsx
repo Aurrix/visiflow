@@ -334,6 +334,20 @@ export function WorkspaceRoot() {
     setSaveSignal((value) => value + 1)
   }, [])
 
+  const toggleViewerFlag = useCallback((target: EndpointRef, flagged: boolean) => {
+    if (!writable) return
+    commitConfig((draft) => {
+      if (target.kind === 'component') {
+        const item = draft.components.find((value) => value.id === target.id)
+        if (item) item.flagged = flagged || undefined
+      } else if (target.kind === 'task') {
+        const item = draft.tasks.find((value) => value.id === target.id)
+        if (item) item.flagged = flagged || undefined
+      }
+    })
+    requestPersist()
+  }, [commitConfig, requestPersist, writable])
+
   const enterEdit = useCallback(() => {
     if (!config || !writable) return
     if (activeSelection?.kind === 'component' && activeSelection.id) {
@@ -465,5 +479,6 @@ export function WorkspaceRoot() {
       onSelection: setSelection,
     }}
     workspaceControls={controls}
+    onToggleFlag={writable ? toggleViewerFlag : undefined}
   />
 }

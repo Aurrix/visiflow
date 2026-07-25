@@ -79,6 +79,7 @@ export const componentSchema = z.object({
   type: z.string().min(1),
   description: z.string(),
   tags: z.array(z.string()).optional(),
+  flagged: z.boolean().optional(),
   defaultState: componentStateSchema.optional(),
   visual: componentVisualSchema,
 })
@@ -104,6 +105,7 @@ export const taskSchema = z.object({
   name: z.string().min(1),
   type: z.string().min(1),
   description: z.string(),
+  flagged: z.boolean().optional(),
   scope: z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('app') }),
     z.object({ kind: z.literal('screen'), screenId: idSchema }),

@@ -13,6 +13,8 @@ interface AppMapProps {
   selection: Selection
   protocols: string[]
   cadence: string
+  taskVisibility: 'all' | 'hide-global' | 'hide-background'
+  flaggedOnly: boolean
   search: string
   onSearch: (value: string) => void
   onSelect: (selection: Selection) => void
@@ -55,7 +57,7 @@ function VisualComponent({ component, position, scenario, screen, screenWidth, c
   return (
     <button
       ref={(node) => register(`component:${component.id}`, node)}
-      className={`visual-node visual-${visual.kind} state-${state}${selected ? ' selected' : ''}`}
+      className={`visual-node visual-${visual.kind} state-${state}${component.flagged ? ' flagged' : ''}${selected ? ' selected' : ''}`}
       style={css}
       onClick={(event) => { event.stopPropagation(); onSelect() }}
       aria-label={`${component.name}, ${state}`}
@@ -73,7 +75,7 @@ function VisualComponent({ component, position, scenario, screen, screenWidth, c
   )
 }
 
-export function AppMap({ config, screenId, scenario, selection, protocols, cadence, search, onSearch, onSelect }: AppMapProps) {
+export function AppMap({ config, screenId, scenario, selection, protocols, cadence, taskVisibility, flaggedOnly, search, onSearch, onSelect }: AppMapProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const deviceAreaRef = useRef<HTMLDivElement>(null)
   const runtimeRailRef = useRef<HTMLDivElement>(null)
@@ -89,8 +91,8 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
     !normalizedSearch || values.join(' ').toLowerCase().includes(normalizedSearch),
   [normalizedSearch])
   const visibleComponents = useMemo(() => components.filter((component) =>
-    matchesSearch(component.name, component.type, component.description, ...(component.tags ?? [])),
-  ), [components, matchesSearch])
+    (!flaggedOnly || component.flagged) && matchesSearch(component.name, component.type, component.description, ...(component.tags ?? [])),
+  ), [components, flaggedOnly, matchesSearch])
   const componentPositions = useMemo(() => resolveComponentLayout(components, screen.width), [components, screen.width])
   const contentHeight = useMemo(() => Math.max(
     screen.contentHeight ?? screen.height,
@@ -105,8 +107,9 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
       protocols.includes(connection.protocol) &&
       ((connection.source.kind === 'task' && connection.source.id === task.id) ||
         (connection.target.kind === 'task' && connection.target.id === task.id)))
-    return cadenceMatch && protocolMatch
-  }), [applicableTasks, cadence, config.connections, protocols])
+    const scopeMatch = taskVisibility === 'all' || taskVisibility === 'hide-global' && task.scope.kind !== 'app' || taskVisibility === 'hide-background' && false
+    return cadenceMatch && protocolMatch && scopeMatch && (!flaggedOnly || task.flagged)
+  }), [applicableTasks, cadence, config.connections, flaggedOnly, protocols, taskVisibility])
   const filteredTaskIds = useMemo(() => new Set(filteredTasks.map((task) => task.id)), [filteredTasks])
   const visibleTasks = useMemo(() => filteredTasks.filter((task) =>
     matchesSearch(task.name, task.type, task.description, task.trigger.label, task.trigger.kind),
@@ -134,6 +137,10 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
         ref.kind === 'task' ? taskIds.has(ref.id) :
           visibleSystemIds.has(ref.id)),
   ), [componentIds, filteredConnections, taskIds, visibleSystemIds])
+  const flaggedEndpointKeys = useMemo(() => new Set([
+    ...config.components.filter((component) => component.flagged).map((component) => `component:${component.id}`),
+    ...config.tasks.filter((task) => task.flagged).map((task) => `task:${task.id}`),
+  ]), [config.components, config.tasks])
   const leftSystems = visibleSystems.filter((item, index) => (item.placement ?? (index % 2 ? 'right' : 'left')) === 'left')
   const rightSystems = visibleSystems.filter((item, index) => (item.placement ?? (index % 2 ? 'right' : 'left')) === 'right')
 
@@ -157,7 +164,8 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
     const nextExtent = { width: stage.scrollWidth, height: stage.scrollHeight }
     setStageExtent((current) => current.width === nextExtent.width && current.height === nextExtent.height ? current : nextExtent)
     const anchor = (node: HTMLElement) => {
-      const rect = node.getBoundingClientRect()
+      const dot = node.querySelector<HTMLElement>('.state-dot')
+      const rect = (dot ?? node).getBoundingClientRect()
       let x = rect.left + rect.width / 2
       let y = rect.top + rect.height / 2
       const viewport = node.closest('.app-screen')?.getBoundingClientRect()
@@ -199,18 +207,21 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
 
   useLayoutEffect(() => {
     measure()
+    const settleMeasurement = window.setTimeout(measure, 240)
     const observer = new ResizeObserver(measure)
     if (stageRef.current) observer.observe(stageRef.current)
     if (deviceAreaRef.current) observer.observe(deviceAreaRef.current)
     if (runtimeRailRef.current) observer.observe(runtimeRailRef.current)
     window.addEventListener('resize', measure)
-    return () => { observer.disconnect(); window.removeEventListener('resize', measure) }
-  }, [measure, screenId, zoom])
+    return () => { window.clearTimeout(settleMeasurement); observer.disconnect(); window.removeEventListener('resize', measure) }
+  }, [fittedWidth, measure, screenId, zoom])
 
   const connectionMap = new Map(visibleConnections.map((item) => [item.id, item]))
   const isFocused = (connection: Connection) => selection && (
     sameRef(selection, connection.source) || sameRef(selection, connection.target)
   )
+  const isFlaggedConnection = (connection: Connection) =>
+    flaggedEndpointKeys.has(selectionKey(connection.source)) || flaggedEndpointKeys.has(selectionKey(connection.target))
 
   const systemCard = (systemId: string) => {
     const system = config.systems.find((item) => item.id === systemId)!
@@ -237,7 +248,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
     return <button
       key={task.id}
       ref={(node) => register(`task:${task.id}`, node)}
-      className={`runtime-task state-${state}${appWide ? ' app-wide' : ''}${selected ? ' selected' : ''}`}
+        className={`runtime-task state-${state}${appWide ? ' app-wide' : ''}${task.flagged ? ' flagged' : ''}${selected ? ' selected' : ''}`}
       onClick={(event) => { event.stopPropagation(); onSelect({ kind: 'task', id: task.id }) }}
       aria-label={`${task.name}, ${appWide ? 'app-wide' : 'current screen'}, ${state}`}
       aria-pressed={selected}
@@ -280,8 +291,9 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
             const connection = connectionMap.get(line.id)
             if (!connection) return null
             const focused = Boolean(isFocused(connection))
+            const flagged = isFlaggedConnection(connection)
             const internal = connection.protocol.toLowerCase() === 'internal'
-            return <g key={line.id} className={`${focused ? 'focused' : ''}${internal ? ' internal' : ''}`}>
+            return <g key={line.id} className={`${focused ? 'focused' : ''}${flagged ? ' flagged' : ''}${internal ? ' internal' : ''}`}>
               <path className="flow-halo" d={line.path} />
               <path className="flow-path" d={line.path} markerEnd="url(#arrow)" />
               {focused && <text x={line.x} y={line.y - 8} textAnchor="middle">{connection.protocol}</text>}

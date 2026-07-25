@@ -202,6 +202,9 @@
               "type": "string"
             }
           },
+          "flagged": {
+            "type": "boolean"
+          },
           "defaultState": {
             "type": "string",
             "enum": [
@@ -637,6 +640,9 @@
           },
           "description": {
             "type": "string"
+          },
+          "flagged": {
+            "type": "boolean"
           },
           "scope": {
             "oneOf": [

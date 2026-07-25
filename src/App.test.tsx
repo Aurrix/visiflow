@@ -43,7 +43,7 @@ describe('VisiFlow', () => {
     expect(filters).toContainElement(screen.getByLabelText('Scenario'))
     expect(filters).toContainElement(screen.getByRole('navigation', { name: 'Screens' }))
     expect(filters).toContainElement(screen.getByRole('button', { name: 'HTTPS' }))
-    expect(filters).toContainElement(screen.getByLabelText('Cadence'))
+    expect(filters).toContainElement(screen.getByText('Cadence'))
     expect(container.querySelector('.context-bar')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Selection details')).toContainElement(screen.getByLabelText('Application context'))
     expect(screen.getByRole('heading', { name: 'Select a node' })).toBeInTheDocument()

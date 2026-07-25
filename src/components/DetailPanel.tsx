@@ -3,14 +3,22 @@ import { connectionCadences, connectionsFor, endpointName, taskState } from '../
 import type { Scenario, VisiFlowConfig } from '../types'
 import { MarkdownText } from './MarkdownText'
 
+function descriptionWithoutDuplicateTitle(description: string, ...titles: Array<string | undefined>) {
+  const firstLine = description.trimStart().split(/\r?\n/, 1)[0]
+  const heading = firstLine.match(/^#{1,6}\s+(.+?)\s*#*\s*$/)?.[1]?.trim().toLocaleLowerCase()
+  const duplicate = heading && titles.some((title) => title?.trim().toLocaleLowerCase() === heading)
+  return duplicate ? description.trimStart().replace(/^#{1,6}\s+.+?(?:\r?\n|$)/, '').trimStart() : description
+}
+
 interface DetailPanelProps {
   config: VisiFlowConfig
   scenario: Scenario
   selection: Selection
   onClose: () => void
+  onToggleFlag?: (selection: Exclude<Selection, null>, flagged: boolean) => void
 }
 
-export function DetailPanel({ config, scenario, selection, onClose }: DetailPanelProps) {
+export function DetailPanel({ config, scenario, selection, onClose, onToggleFlag }: DetailPanelProps) {
   if (!selection) {
     return (
       <aside className="detail-panel detail-empty" aria-label="Selection details">
@@ -39,6 +47,13 @@ export function DetailPanel({ config, scenario, selection, onClose }: DetailPane
       : config.systems.find((candidate) => candidate.id === selection.id)
   if (!item) return null
   const connections = connectionsFor(config, selection)
+  const flagTarget = selection.kind === 'component' || selection.kind === 'task' ? selection : undefined
+  const flagged = selection.kind === 'component'
+    ? config.components.find((candidate) => candidate.id === selection.id)?.flagged === true
+    : selection.kind === 'task'
+      ? selectedTask?.flagged === true
+      : false
+  const description = descriptionWithoutDuplicateTitle(item.description, item.name, selection.kind === 'component' ? item.type : undefined)
 
   return (
     <aside className="detail-panel" aria-label={`${item.name} details`}>
@@ -47,7 +62,8 @@ export function DetailPanel({ config, scenario, selection, onClose }: DetailPane
         ? item.type
         : selection.kind === 'task' && selectedTask ? `${selectedTask.scope.kind === 'app' ? 'App-wide' : 'Screen'} · ${selectedTask.type}` : `External · ${item.type}`}</p>
       <h2>{item.name}</h2>
-      <MarkdownText className="detail-description">{item.description}</MarkdownText>
+      {flagTarget && onToggleFlag && <button type="button" className={`detail-flag${flagged ? ' active' : ''}`} onClick={() => onToggleFlag(flagTarget, !flagged)}>{flagged ? '★ Flagged' : '☆ Flag item'}</button>}
+      <MarkdownText className="detail-description" demoteHeadings>{description}</MarkdownText>
       {selectedTask && <div className="task-trigger-detail">
         <span>Trigger</span>
         <strong>{selectedTask.trigger.label}</strong>

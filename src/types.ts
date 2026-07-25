@@ -58,6 +58,7 @@ export interface AppComponent {
   type: string
   description: string
   tags?: string[]
+  flagged?: boolean
   defaultState?: ComponentState
   visual: ComponentVisual
 }
@@ -97,6 +98,7 @@ export interface BackgroundTask {
   name: string
   type: string
   description: string
+  flagged?: boolean
   scope: TaskScope
   trigger: Cadence
   defaultState?: ComponentState

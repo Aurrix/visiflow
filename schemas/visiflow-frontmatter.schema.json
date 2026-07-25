@@ -194,6 +194,9 @@
               "description": {
                 "type": "string"
               },
+              "flagged": {
+                "type": "boolean"
+              },
               "scope": {
                 "oneOf": [
                   {

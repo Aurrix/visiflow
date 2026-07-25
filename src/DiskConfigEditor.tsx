@@ -756,6 +756,7 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
         if (next === 'region') delete value.visual.src
       })}><option value="region">Screenshot region</option><option value="image">Embedded image</option><option value="rendered">Rendered component</option></select></Field>
       <Field label="Type"><input value={item.type} onChange={(event) => update((value) => { value.type = event.target.value })} /></Field>
+      <Field label="Flagged"><input type="checkbox" checked={item.flagged ?? false} onChange={(event) => update((value) => { value.flagged = event.target.checked || undefined })} /></Field>
       <Field label="Default state"><select value={item.defaultState ?? 'active'} onChange={(event) => update((value) => { value.defaultState = event.target.value as ComponentState })}><option>active</option><option>inactive</option></select></Field>
       <Field label="X"><input type="number" min="0" value={item.visual.x} onChange={(event) => update((value) => { value.visual.x = number(event.target.value); delete value.visual.layout })} /></Field>
       <Field label="Y"><input type="number" min="0" value={item.visual.y} onChange={(event) => update((value) => { value.visual.y = number(event.target.value); delete value.visual.layout })} /></Field>
@@ -817,6 +818,7 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
       <Field label="Name" wide><input value={item.name} onChange={(event) => update((value) => { value.name = event.target.value })} /></Field>
       <Field label="ID" wide><input value={item.id} onChange={(event) => rename('task', item.id, event.target.value)} /></Field>
       <Field label="Type"><input value={item.type} onChange={(event) => update((value) => { value.type = event.target.value })} /></Field>
+      <Field label="Flagged"><input type="checkbox" checked={item.flagged ?? false} onChange={(event) => update((value) => { value.flagged = event.target.checked || undefined })} /></Field>
       <Field label="Scope"><select value={item.scope.kind} onChange={(event) => update((value) => {
         value.scope = event.target.value === 'app' ? { kind: 'app' } : { kind: 'screen', screenId: screen.id }
       })}><option value="screen">Current screen</option><option value="app">App-wide</option></select></Field>

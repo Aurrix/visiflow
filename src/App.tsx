@@ -27,11 +27,12 @@ export interface ViewerNavigation {
   onSelection: (selection: Selection) => void
 }
 
-export function VisiFlow({ config, onOpenProject, navigation, workspaceControls }: {
+export function VisiFlow({ config, onOpenProject, navigation, workspaceControls, onToggleFlag }: {
   config: VisiFlowConfig
   onOpenProject?: () => void
   navigation?: ViewerNavigation
   workspaceControls?: React.ReactNode
+  onToggleFlag?: (selection: Exclude<Selection, null>, flagged: boolean) => void
 }) {
   const initialScenario = config.scenarios.find((item) => item.id === config.initialScenarioId) ?? config.scenarios[0]
   const [view, setView] = useState<'map' | 'catalog' | 'systems'>('map')
@@ -44,6 +45,8 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls 
   const [stateFilter, setStateFilter] = useState('all')
   const [selectedProtocols, setSelectedProtocols] = useState<string[]>([])
   const [cadence, setCadence] = useState('all')
+  const [taskVisibility, setTaskVisibility] = useState<'all' | 'hide-global' | 'hide-background'>('all')
+  const [flaggedOnly, setFlaggedOnly] = useState(false)
   const [mapSearch, setMapSearch] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const scenarioId = navigation?.scenarioId ?? localScenarioId
@@ -67,7 +70,9 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls 
     ...config.connections.flatMap((item) => item.cadence ? [item.cadence.kind] : []),
     ...config.tasks.map((item) => item.trigger.kind),
   ])].sort(), [config])
-  const hasActiveFilters = selectedProtocols.length > 0 || cadence !== 'all'
+  const hasActiveFilters = selectedProtocols.length > 0 || cadence !== 'all' || taskVisibility !== 'all' || flaggedOnly
+  const taskVisibilityLabel = taskVisibility === 'all' ? 'All tasks' : taskVisibility === 'hide-global' ? 'Hide global tasks' : 'Hide background tasks'
+  const cycleTaskVisibility = () => setTaskVisibility((value) => value === 'all' ? 'hide-global' : value === 'hide-global' ? 'hide-background' : 'all')
 
   const changeScenario = (nextId: string) => {
     setScenarioId(nextId)
@@ -120,6 +125,11 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls 
                 <button type="button" className={selectedProtocols.length === 0 ? 'active' : ''} aria-pressed={selectedProtocols.length === 0} onClick={() => setSelectedProtocols([])}>All</button>
                 {protocols.map((item) => <button type="button" className={selectedProtocols.includes(item) ? 'active' : ''} aria-pressed={selectedProtocols.includes(item)} onClick={() => toggleProtocol(item)} key={item}>{item}</button>)}
               </div>
+              <header className="sidebar-subheading"><span>Cadence</span><small>{cadence === 'all' ? 'All' : cadenceLabels[cadence as keyof typeof cadenceLabels]}</small></header>
+              <div className="protocol-toggles">
+                <button type="button" className={cadence === 'all' ? 'active' : ''} aria-pressed={cadence === 'all'} onClick={() => setCadence('all')}>All</button>
+                {cadences.map((item) => <button type="button" className={cadence === item ? 'active' : ''} aria-pressed={cadence === item} onClick={() => setCadence(item)} key={item}>{cadenceLabels[item]}</button>)}
+              </div>
             </section>
             <section className="sidebar-section scenario-section">
               <label><span>Scenario</span><select value={scenarioId} onChange={(event) => changeScenario(event.target.value)}>{config.scenarios.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
@@ -128,21 +138,24 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls 
               <header><span>Screens</span><small>{config.screens.length}</small></header>
               <ScreenTree screens={config.screens} activeId={screenId} onSelect={selectSidebarScreen} />
             </section>
-            <section className="sidebar-section cadence-section">
-              <label><span>Cadence</span><select value={cadence} onChange={(event) => setCadence(event.target.value)}><option value="all">All cadence</option>{cadences.map((item) => <option value={item} key={item}>{cadenceLabels[item]}</option>)}</select></label>
+            <section className="sidebar-section map-filter-actions">
+              <button type="button" className={taskVisibility === 'all' ? '' : 'active'} onClick={cycleTaskVisibility}>{taskVisibilityLabel}</button>
+              <button type="button" className={flaggedOnly ? 'active' : ''} aria-pressed={flaggedOnly} onClick={() => setFlaggedOnly((value) => !value)}>Flagged only</button>
             </section>
             {hasActiveFilters && <button className="clear-filters" type="button" onClick={() => {
               setSelectedProtocols([])
               setCadence('all')
+              setTaskVisibility('all')
+              setFlaggedOnly(false)
               setCatalogScreen('all')
             }}>Clear filters</button>}
           </>}
         </aside>}
 
-        {view === 'map' ? <AppMap config={config} screenId={screenId} scenario={scenario} selection={selection} protocols={selectedProtocols} cadence={cadence} search={mapSearch} onSearch={setMapSearch} onSelect={setSelection} /> :
+        {view === 'map' ? <AppMap config={config} screenId={screenId} scenario={scenario} selection={selection} protocols={selectedProtocols} cadence={cadence} taskVisibility={taskVisibility} flaggedOnly={flaggedOnly} search={mapSearch} onSearch={setMapSearch} onSelect={setSelection} /> :
           view === 'catalog' ? <Catalog config={config} scenario={scenario} selection={selection} search={search} screen={catalogScreen} protocols={selectedProtocols} availableProtocols={protocols} cadence={cadence} cadences={cadences} state={stateFilter} onSearch={setSearch} onScreen={setCatalogScreen} onScenario={changeScenario} onToggleProtocol={toggleProtocol} onClearProtocols={() => setSelectedProtocols([])} onCadence={setCadence} onState={setStateFilter} onSelect={setSelection} onShowInApp={showInApp} /> :
             <SystemsCatalog config={config} selection={selection} search={systemsSearch} protocols={selectedProtocols} availableProtocols={protocols} cadence={cadence} cadences={cadences} onSearch={setSystemsSearch} onToggleProtocol={toggleProtocol} onClearProtocols={() => setSelectedProtocols([])} onCadence={setCadence} onSelect={setSelection} />}
-        <DetailPanel config={config} scenario={scenario} selection={selection} onClose={() => setSelection(null)} />
+        <DetailPanel config={config} scenario={scenario} selection={selection} onClose={() => setSelection(null)} onToggleFlag={onToggleFlag} />
       </main>
     </div>
   )
