@@ -24,6 +24,7 @@ export const appSchema = z.object({
   device: z.enum(['ios', 'android', 'web', 'desktop', 'custom']),
   initialScreenId: idSchema,
   accent: z.string().optional(),
+  phoneBackgroundColor: z.string().optional(),
 })
 
 export const screenSchema = z.object({

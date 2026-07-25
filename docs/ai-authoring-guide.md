@@ -42,6 +42,8 @@ The root manifest owns:
 - `componentFiles`: every component document path when hosted;
 - `connections`: connections not owned by a component.
 
+Use `app.phoneBackgroundColor` for the default canvas color behind every phone screen. A screen's own `background` overrides this global default.
+
 The Markdown body should describe the application as a whole: its purpose, audience, and notable flows.
 
 ### 2. Component documents

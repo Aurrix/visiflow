@@ -603,6 +603,7 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
     <Field label="Initial screen"><select value={config.app.initialScreenId} onChange={(event) => commit((draft) => { draft.app.initialScreenId = event.target.value })}>{config.screens.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Initial scenario"><select value={config.initialScenarioId ?? config.scenarios[0].id} onChange={(event) => commit((draft) => { draft.initialScenarioId = event.target.value })}>{config.scenarios.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Accent"><input type="color" value={config.app.accent ?? '#7c8cff'} onChange={(event) => commit((draft) => { draft.app.accent = event.target.value })} /></Field>
+    <Field label="Phone background"><input type="color" value={config.app.phoneBackgroundColor ?? '#171b27'} onChange={(event) => commit((draft) => { draft.app.phoneBackgroundColor = event.target.value })} /></Field>
     <Field label="Project documentation (Markdown)" wide><textarea value={config.app.description} onChange={(event) => commit((draft) => { draft.app.description = event.target.value })} /></Field>
   </div>
 

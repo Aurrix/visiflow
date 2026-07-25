@@ -91,6 +91,7 @@ export function synchronizeWorkspace(workspace: ProjectWorkspace, config: VisiFl
     device: config.app.device,
     initialScreenId: config.app.initialScreenId,
     ...(config.app.accent ? { accent: config.app.accent } : {}),
+    ...(config.app.phoneBackgroundColor ? { phoneBackgroundColor: config.app.phoneBackgroundColor } : {}),
   }
   next.manifest = {
     visiflow: 2,

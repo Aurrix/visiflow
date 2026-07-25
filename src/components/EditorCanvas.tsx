@@ -88,13 +88,13 @@ export function EditorCanvas({ config, screen, scenario, selectedComponentId, dr
   return <div className={`editor-canvas-area${drawMode ? ' drawing-mode' : ''}`}>
     <div className="editor-device" style={{ aspectRatio: `${screen.width} / ${screen.height}` }}>
       {screen.showSystemUi !== false && <div className="editor-device-speaker" />}
-      <div className="editor-device-viewport">
+      <div className="editor-device-viewport" style={{ background: config.app.phoneBackgroundColor ?? '#171b27' }}>
         <div
           ref={canvasRef}
           className="editor-screen-canvas"
           style={{
             height: `${contentHeight / screen.height * 100}%`,
-            background: screen.background,
+            background: screen.background ?? config.app.phoneBackgroundColor,
             backgroundImage: screen.backgroundImage ? `url(${resolveAssetSource(screen.backgroundImage)})` : undefined,
             backgroundSize: screen.backgroundSize ?? '100% auto',
             backgroundPosition: screen.backgroundPosition ?? 'top center',

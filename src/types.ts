@@ -142,6 +142,7 @@ export interface VisiFlowConfig {
     device: 'ios' | 'android' | 'web' | 'desktop' | 'custom'
     initialScreenId: string
     accent?: string
+    phoneBackgroundColor?: string
   }
   screens: AppScreen[]
   components: AppComponent[]

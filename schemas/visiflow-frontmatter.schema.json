@@ -45,6 +45,9 @@
             },
             "accent": {
               "type": "string"
+            },
+            "phoneBackgroundColor": {
+              "type": "string"
             }
           },
           "required": [

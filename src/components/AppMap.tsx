@@ -286,11 +286,11 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
         <div className="device-wrap" ref={deviceAreaRef}>
           <div className={`device-frame device-${config.app.device}`} style={{ aspectRatio: `${screen.width} / ${screen.height}`, width: fittedWidth * zoom }}>
             {screen.showSystemUi !== false && <div className="device-speaker" />}
-            <div className={`app-screen${contentHeight > screen.height ? ' scrollable' : ''}`} onScroll={measure}>
+            <div className={`app-screen${contentHeight > screen.height ? ' scrollable' : ''}`} style={{ background: config.app.phoneBackgroundColor ?? '#171b27' }} onScroll={measure}>
               {screen.showSystemUi !== false && <div className="status-bar"><span>9:41</span><span>● ◒ ▰</span></div>}
               <div className="screen-canvas" style={{
                 height: `${(contentHeight / screen.height) * 100}%`,
-                background: screen.background,
+                background: screen.background ?? config.app.phoneBackgroundColor,
                 backgroundImage: screen.backgroundImage ? `url(${resolveAssetSource(screen.backgroundImage)})` : undefined,
                 backgroundSize: screen.backgroundSize ?? (contentHeight > screen.height ? '100% auto' : 'cover'),
                 backgroundPosition: screen.backgroundPosition ?? 'top center',
