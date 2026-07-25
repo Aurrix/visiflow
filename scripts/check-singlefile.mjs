@@ -39,6 +39,8 @@ if (!viewer.includes('demo/project.visiflow.md')) throw new Error('Viewer defaul
 if (!viewer.includes('VisiFlow Project Editor')) throw new Error('Unified editor marker is missing')
 if (!viewer.includes('open-folder')) throw new Error('Unified folder action is missing')
 if (!viewer.includes('manifest.webmanifest')) throw new Error('PWA manifest link is missing')
+const serviceWorker = await readFile(resolve(dist, 'sw.js'), 'utf8')
+if (serviceWorker.includes('__VISIFLOW_BUILD_ID__')) throw new Error('Service worker build ID was not stamped')
 if (viewer.includes('Open JSON')) throw new Error('Legacy JSON editor behavior is still bundled')
 
 const sizes = [

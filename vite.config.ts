@@ -1,4 +1,4 @@
-import { cp } from 'node:fs/promises'
+import { cp, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
@@ -11,6 +11,8 @@ export default defineConfig(() => {
     name: 'visiflow-schema-artifact',
     async closeBundle() {
       await cp(resolve(__dirname, 'schemas'), resolve(__dirname, 'dist', 'schemas'), { recursive: true })
+      const serviceWorker = await readFile(resolve(__dirname, 'public', 'sw.js'), 'utf8')
+      await writeFile(resolve(__dirname, 'dist', 'sw.js'), serviceWorker.replace('__VISIFLOW_BUILD_ID__', Date.now().toString()))
     },
   }
 

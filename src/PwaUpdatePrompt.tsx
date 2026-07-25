@@ -20,7 +20,7 @@ export function PwaUpdatePrompt() {
     const checkForUpdate = () => { void registration?.update() }
     let registration: ServiceWorkerRegistration | null = null
 
-    void navigator.serviceWorker.register(new URL('./sw.js', window.location.href), { scope: './' }).then((next) => {
+    void navigator.serviceWorker.register(new URL('./sw.js', window.location.href), { scope: './', updateViaCache: 'none' }).then((next) => {
       if (!active) return
       registration = next
       setRegistration(next)

@@ -1,8 +1,13 @@
-const CACHE_NAME = 'visiflow-shell-v1'
+const CACHE_NAME = 'visiflow-shell-__VISIFLOW_BUILD_ID__'
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/visiflow.svg']
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)))
+  event.waitUntil(caches.open(CACHE_NAME).then(async (cache) => {
+    await Promise.all(APP_SHELL.map(async (url) => {
+      const response = await fetch(url, { cache: 'reload' })
+      await cache.put(url, response)
+    }))
+  }))
 })
 
 self.addEventListener('activate', (event) => {
