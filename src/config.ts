@@ -54,6 +54,7 @@ export const screenSchema = z.object({
   backgroundSize: z.string().optional(),
   backgroundPosition: z.string().optional(),
   showSystemUi: z.boolean().optional(),
+  representation: z.enum(['phone', 'web', 'desktop', 'diagram']).optional(),
 })
 
 export const componentVisualSchema = visualStyleSchema.extend({
@@ -110,7 +111,7 @@ export const taskSchema = z.object({
     z.object({ kind: z.literal('app') }),
     z.object({ kind: z.literal('screen'), screenId: idSchema }),
   ]),
-  trigger: cadenceSchema,
+  trigger: cadenceSchema.optional(),
   defaultState: componentStateSchema.optional(),
 })
 export const endpointSchema = z.object({ kind: z.enum(['component', 'task', 'system']), id: idSchema })
@@ -166,6 +167,7 @@ export const runtimeConfigSchema = z.object({
   const componentIds = new Set(value.components.map((item) => item.id))
   const textureIds = new Set(value.textureLayers.map((item) => item.id))
   const taskIds = new Set(value.tasks.map((item) => item.id))
+  const taskById = new Map(value.tasks.map((item) => [item.id, item]))
   const systemIds = new Set(value.systems.map((item) => item.id))
   const scenarioIds = new Set(value.scenarios.map((item) => item.id))
   if (!screenIds.has(value.app.initialScreenId)) context.addIssue({ code: 'custom', message: 'Unknown initial screen', path: ['app', 'initialScreenId'] })
@@ -240,8 +242,13 @@ export const runtimeConfigSchema = z.object({
       if (!valid) context.addIssue({ code: 'custom', message: `Unknown ${ref.kind}`, path: ['connections', index, side, 'id'] })
     })
     const touchesTask = connection.source.kind === 'task' || connection.target.kind === 'task'
+    const screenTaskComponentConnection = [connection.source, connection.target].some((ref) => ref.kind === 'component') &&
+      [connection.source, connection.target].some((ref) => ref.kind === 'task' && taskById.get(ref.id)?.scope.kind === 'screen')
+    if (screenTaskComponentConnection) {
+      context.addIssue({ code: 'custom', message: 'Screen background tasks cannot connect directly to components', path: ['connections', index] })
+    }
     if (touchesTask && connection.cadence) {
-      context.addIssue({ code: 'custom', message: 'Task-related connections inherit cadence from the task trigger', path: ['connections', index, 'cadence'] })
+      context.addIssue({ code: 'custom', message: 'Task-related connections inherit cadence when a task defines a trigger; they do not declare cadence', path: ['connections', index, 'cadence'] })
     } else if (!touchesTask && !connection.cadence) {
       context.addIssue({ code: 'custom', message: 'Direct connections require cadence', path: ['connections', index, 'cadence'] })
     }

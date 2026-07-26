@@ -68,7 +68,7 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls,
   const protocols = useMemo(() => [...new Set(config.connections.map((item) => item.protocol))].sort(), [config])
   const cadences = useMemo(() => [...new Set([
     ...config.connections.flatMap((item) => item.cadence ? [item.cadence.kind] : []),
-    ...config.tasks.map((item) => item.trigger.kind),
+    ...config.tasks.flatMap((item) => item.trigger ? [item.trigger.kind] : []),
   ])].sort(), [config])
   const hasActiveFilters = selectedProtocols.length > 0 || cadence !== 'all' || taskVisibility !== 'all' || flaggedOnly
   const taskVisibilityLabel = taskVisibility === 'all' ? 'All tasks' : taskVisibility === 'hide-global' ? 'Hide global tasks' : 'Hide background tasks'
@@ -112,13 +112,8 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls,
       </header>
 
       <main className={`main-layout view-${view}`}>
-        {view === 'map' && <aside className={`filter-sidebar ${filtersOpen ? 'expanded' : 'collapsed'}`} aria-label="View filters">
-          <button className="filter-sidebar-toggle" type="button" aria-expanded={filtersOpen} aria-label={filtersOpen ? 'Collapse view filters' : 'Expand view filters'} onClick={() => setFiltersOpen((open) => !open)}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" /></svg>
-            {filtersOpen && <><strong>View controls</strong><small>{view === 'map' ? 'Canvas' : 'Inventory'}</small></>}
-            {!filtersOpen && hasActiveFilters && <i className="filter-active-dot" aria-label="Filters active" />}
-          </button>
-          {filtersOpen && <>
+        {view === 'map' && filtersOpen && <aside className="filter-sidebar expanded" aria-label="View filters">
+          <>
             <section className="sidebar-section protocol-section">
               <header><span>Protocols</span><small>{selectedProtocols.length || 'All'}</small></header>
               <div className="protocol-toggles">
@@ -149,10 +144,10 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls,
               setFlaggedOnly(false)
               setCatalogScreen('all')
             }}>Clear filters</button>}
-          </>}
+          </>
         </aside>}
 
-        {view === 'map' ? <AppMap config={config} screenId={screenId} scenario={scenario} selection={selection} protocols={selectedProtocols} cadence={cadence} taskVisibility={taskVisibility} flaggedOnly={flaggedOnly} search={mapSearch} onSearch={setMapSearch} onSelect={setSelection} /> :
+        {view === 'map' ? <AppMap config={config} screenId={screenId} scenario={scenario} selection={selection} protocols={selectedProtocols} cadence={cadence} taskVisibility={taskVisibility} flaggedOnly={flaggedOnly} search={mapSearch} onSearch={setMapSearch} onScreen={setScreenId} onSelect={setSelection} filtersOpen={filtersOpen} hasActiveFilters={hasActiveFilters} onToggleFilters={() => setFiltersOpen((open) => !open)} /> :
           view === 'catalog' ? <Catalog config={config} scenario={scenario} selection={selection} search={search} screen={catalogScreen} protocols={selectedProtocols} availableProtocols={protocols} cadence={cadence} cadences={cadences} state={stateFilter} onSearch={setSearch} onScreen={setCatalogScreen} onScenario={changeScenario} onToggleProtocol={toggleProtocol} onClearProtocols={() => setSelectedProtocols([])} onCadence={setCadence} onState={setStateFilter} onSelect={setSelection} onShowInApp={showInApp} /> :
             <SystemsCatalog config={config} selection={selection} search={systemsSearch} protocols={selectedProtocols} availableProtocols={protocols} cadence={cadence} cadences={cadences} onSearch={setSystemsSearch} onToggleProtocol={toggleProtocol} onClearProtocols={() => setSelectedProtocols([])} onCadence={setCadence} onSelect={setSelection} />}
         <DetailPanel config={config} scenario={scenario} selection={selection} onClose={() => setSelection(null)} onToggleFlag={onToggleFlag} />

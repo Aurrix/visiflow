@@ -40,14 +40,6 @@ calls:
     cadence:
       kind: user-event
       label: On ride request
-  - id: start-fare-estimate
-    name: Start fare estimate
-    direction: outgoing
-    peer:
-      kind: task
-      id: fare-estimate
-    protocol: Internal
-    description: Signals the ride-choice fare estimate worker.
 ---
 
 ## Ride selection

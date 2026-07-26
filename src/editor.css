@@ -156,6 +156,8 @@
 
 .editor-device-speaker { position: absolute; z-index: 8; width: 74px; height: 20px; top: 14px; left: 50%; transform: translateX(-50%); border-radius: 14px; background: #030407; pointer-events: none; }
 .editor-device-viewport { width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto; border-radius: 34px; background: #171b27; scrollbar-width: thin; }
+.editor-device-web { width: min(640px, 94%); padding: 34px 8px 8px; border-radius: 12px; background: #242a38; }.editor-device-web .editor-device-viewport { border-radius: 3px; }.editor-browser-chrome { position: absolute; z-index: 9; top: 0; left: 0; right: 0; height: 32px; display: flex; align-items: center; gap: 5px; padding: 0 10px; border-radius: 10px 10px 0 0; background: #303747; }.editor-browser-chrome i { width: 8px; height: 8px; border-radius: 50%; background: #f16d72; }.editor-browser-chrome i:nth-child(2) { background: #e1b95c; }.editor-browser-chrome i:nth-child(3) { background: #67c984; }.editor-browser-chrome span { flex: 1; max-width: 210px; margin-left: 8px; padding: 4px 9px; border-radius: 4px; color: #aeb7c9; background: #1b202d; font-size: 8px; text-align: center; }
+.editor-device-desktop { width: min(760px, 96%); padding: 36px 9px 9px; border-radius: 8px; background: #242a38; }.editor-device-desktop .editor-device-viewport { border-radius: 2px; }.editor-device-diagram { padding: 6px; border: 1px dashed color-mix(in srgb, var(--accent) 58%, var(--line)); border-radius: 10px; background: rgba(16,20,30,.9); box-shadow: 0 18px 42px #0007; }.editor-device-diagram .editor-device-viewport { border-radius: 5px; }
 .editor-screen-canvas { width: 100%; min-height: 100%; position: relative; background-repeat: no-repeat !important; touch-action: none; }
 
 .editor-component-box {

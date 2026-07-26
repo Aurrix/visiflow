@@ -34,6 +34,8 @@ export function EditorCanvas({ config, screen, scenario, selectedComponentId, dr
   const canvasRef = useRef<HTMLDivElement>(null)
   const ctrlKeyRef = useRef(false)
   const components = config.components.filter((item) => item.screenId === screen.id)
+  const representation = screen.representation ?? config.app.device
+  const previewAspect = representation === 'web' ? '16 / 10' : representation === 'desktop' ? '16 / 9' : representation === 'diagram' ? '4 / 3' : `${screen.width} / ${screen.height}`
   const positions = useMemo(() => resolveComponentLayout(components, screen.width), [components, screen.width])
   const contentHeight = useMemo(() => Math.max(screen.contentHeight ?? screen.height, ...components.map((item) => (positions.get(item.id)?.y ?? item.visual.y) + item.visual.height)), [components, positions, screen.contentHeight, screen.height])
   const [drawing, setDrawing] = useState<{ start: { x: number; y: number }; current: { x: number; y: number } } | null>(null)
@@ -144,8 +146,9 @@ export function EditorCanvas({ config, screen, scenario, selectedComponentId, dr
   }
 
   return <div className={`editor-canvas-area${drawMode ? ' drawing-mode' : ''}`}>
-    <div className="editor-device" style={{ aspectRatio: `${screen.width} / ${screen.height}` }}>
-      {screen.showSystemUi !== false && <div className="editor-device-speaker" />}
+    <div className={`editor-device editor-device-${representation}`} style={{ aspectRatio: previewAspect }}>
+      {(representation === 'web' || representation === 'desktop') && <div className="editor-browser-chrome"><i /><i /><i /><span>app.visiflow</span></div>}
+      {representation !== 'web' && representation !== 'desktop' && representation !== 'diagram' && screen.showSystemUi !== false && <div className="editor-device-speaker" />}
       <div className="editor-device-viewport" style={{ background: config.app.phoneBackgroundColor ?? '#171b27' }}>
         <div
           ref={canvasRef}

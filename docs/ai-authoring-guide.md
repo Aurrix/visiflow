@@ -83,13 +83,13 @@ Use a component's `calls` array for connections it owns. Use root `connections` 
 
 - `direction: outgoing` means the documented node initiates the request.
 - `direction: incoming` means the documented node receives it.
-- `peer` may reference a `component`, `task`, or `system`.
+- `peer` may reference a `component`, a global `task`, or a `system`; screen background tasks are not component peers.
 - Use a real protocol (`HTTPS`, `gRPC`, etc.) for external requests.
-- Use `Internal` for component-to-task or task-to-task control flow.
+- Use `Internal` for task-to-task control flow. Screen background tasks never connect directly to components.
 - Direct connections without a task require a `cadence`.
-- Connections involving a task omit `cadence`; the task's `trigger` owns timing.
+- Connections involving a task omit `cadence`. A task may optionally own timing in `trigger`.
 
-For each task, choose `scope: { kind: app }` or `scope: { kind: screen, screenId: ... }`, add a `trigger`, and set a sensible `defaultState`.
+For each task, choose `scope: { kind: app }` or `scope: { kind: screen, screenId: ... }` and set a sensible `defaultState`. Screen-scoped tasks represent independent background work for that screen, never connect directly to components, and normally omit `trigger`. Add `trigger` only when the task is scheduled, polled, lifecycle-driven, or otherwise independently timed.
 
 ## Scenarios and states
 
@@ -132,7 +132,7 @@ Before handing off a project edit, verify:
 2. There is exactly one root `kind: project` manifest named `project.visiflow.md`.
 3. Every component file is listed in `componentFiles`.
 4. All IDs and cross-file references resolve.
-5. Task timing lives in `trigger`; task-related connections do not declare `cadence`.
+5. Task-related connections do not declare `cadence`. Add a task `trigger` only for independently timed work; screen background tasks normally have none.
 6. Every scenario has both `componentStates` and `taskStates`.
 7. Asset paths are relative, slash-separated, and exist.
 8. Markdown bodies explain the item instead of duplicating raw YAML.

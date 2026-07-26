@@ -24,23 +24,6 @@ visual:
   y: 647
   width: 358
   height: 188
-calls:
-  - id: start-route-refresh
-    name: Start route refresh
-    direction: outgoing
-    peer:
-      kind: task
-      id: refresh-routes
-    protocol: Internal
-    description: Signals the screen-scoped route refresh task.
-  - id: start-map-prefetch
-    name: Start map tile prefetch
-    direction: outgoing
-    peer:
-      kind: task
-      id: prefetch-map-tiles
-    protocol: Internal
-    description: Signals the screen-scoped map tile worker.
 ---
 
 ## Trip progress

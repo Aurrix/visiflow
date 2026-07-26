@@ -152,7 +152,6 @@ describe('VisiFlow', () => {
         type: 'Data refresh',
         description: 'Refreshes this screen.',
         scope: { kind: 'screen', screenId: 'home' },
-        trigger: { kind: 'polling', label: 'Every minute', intervalMs: 60000 },
       },
       {
         id: 'global-sync',
@@ -168,19 +167,10 @@ describe('VisiFlow', () => {
         type: 'Data refresh',
         description: 'Refreshes the other screen.',
         scope: { kind: 'screen', screenId: 'other' },
-        trigger: { kind: 'lifecycle', label: 'On open' },
       },
     ]
     config.scenarios[0].taskStates['global-sync'] = 'inactive'
     config.connections.push(
-      {
-        id: 'start-screen-sync',
-        name: 'Start screen sync',
-        source: { kind: 'component', id: 'button' },
-        target: { kind: 'task', id: 'screen-sync' },
-        protocol: 'Internal',
-        description: 'Starts the refresh.',
-      },
       {
         id: 'run-screen-sync',
         name: 'Run screen sync',

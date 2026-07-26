@@ -110,6 +110,15 @@
           },
           "showSystemUi": {
             "type": "boolean"
+          },
+          "representation": {
+            "type": "string",
+            "enum": [
+              "phone",
+              "web",
+              "desktop",
+              "diagram"
+            ]
           }
         },
         "required": [
@@ -726,8 +735,7 @@
           "name",
           "type",
           "description",
-          "scope",
-          "trigger"
+          "scope"
         ],
         "additionalProperties": false
       }

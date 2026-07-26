@@ -5,6 +5,7 @@ import { componentState, componentStyle, connectionMatchesCadence, sameRef, sele
 import type { AppComponent, AppScreen, BackgroundTask, Connection, Scenario, VisiFlowConfig } from '../types'
 import { resolveAssetSource } from '../assets'
 import { resolveComponentLayout, type ComponentPosition } from '../layout'
+import { ScreenSystemOverview } from './ScreenSystemOverview'
 
 interface AppMapProps {
   config: VisiFlowConfig
@@ -17,6 +18,10 @@ interface AppMapProps {
   flaggedOnly: boolean
   search: string
   onSearch: (value: string) => void
+  onScreen: (screenId: string) => void
+  filtersOpen: boolean
+  hasActiveFilters: boolean
+  onToggleFilters: () => void
   onSelect: (selection: Selection) => void
 }
 
@@ -75,7 +80,22 @@ function VisualComponent({ component, position, scenario, screen, screenWidth, c
   )
 }
 
-export function AppMap({ config, screenId, scenario, selection, protocols, cadence, taskVisibility, flaggedOnly, search, onSearch, onSelect }: AppMapProps) {
+function DiagramComponent({ component, scenario, selected, register, onSelect }: {
+  component: AppComponent
+  scenario: Scenario
+  selected: boolean
+  register: (key: string, node: HTMLElement | null) => void
+  onSelect: () => void
+}) {
+  const state = componentState(component, scenario)
+  return <button ref={(node) => register(`component:${component.id}`, node)} className={`diagram-component state-${state}${component.flagged ? ' flagged' : ''}${selected ? ' selected' : ''}`} onClick={(event) => { event.stopPropagation(); onSelect() }} aria-label={`${component.name}, ${state}`} aria-pressed={selected}>
+    <span className="diagram-component-icon">{component.visual.kind.slice(0, 1).toUpperCase()}</span>
+    <span><small>{component.type}</small><strong>{component.name}</strong></span>
+    {component.flagged && <i title="Flagged component">⚠</i>}
+  </button>
+}
+
+export function AppMap({ config, screenId, scenario, selection, protocols, cadence, taskVisibility, flaggedOnly, search, onSearch, onScreen, filtersOpen, hasActiveFilters, onToggleFilters, onSelect }: AppMapProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const deviceAreaRef = useRef<HTMLDivElement>(null)
   const runtimeRailRef = useRef<HTMLDivElement>(null)
@@ -84,7 +104,14 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
   const [stageExtent, setStageExtent] = useState({ width: 0, height: 0 })
   const [fittedWidth, setFittedWidth] = useState(292)
   const [zoom, setZoom] = useState(1)
+  const [mapMode, setMapMode] = useState<'preview' | 'overview'>('preview')
+  const [representationOpen, setRepresentationOpen] = useState(false)
+  const [forcedRepresentation, setForcedRepresentation] = useState<'phone' | 'web' | 'desktop' | 'diagram' | null>(null)
   const screen = config.screens.find((item) => item.id === screenId) ?? config.screens[0]
+  const defaultRepresentation = screen.representation ?? (config.app.device === 'web' || config.app.device === 'desktop' ? config.app.device : 'phone')
+  const representation = forcedRepresentation ?? defaultRepresentation
+  const isBrowser = representation === 'web' || representation === 'desktop'
+  const isPhone = !isBrowser && representation !== 'diagram'
   const components = useMemo(() => config.components.filter((item) => item.screenId === screen.id), [config.components, screen.id])
   const normalizedSearch = search.trim().toLowerCase()
   const matchesSearch = useCallback((...values: Array<string | undefined>) =>
@@ -102,7 +129,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
   const componentIds = useMemo(() => new Set(visibleComponents.map((item) => item.id)), [visibleComponents])
   const applicableTasks = useMemo(() => config.tasks.filter((task) => taskIsVisible(task, screen.id)), [config.tasks, screen.id])
   const filteredTasks = useMemo(() => applicableTasks.filter((task) => {
-    const cadenceMatch = cadence === 'all' || task.trigger.kind === cadence
+    const cadenceMatch = cadence === 'all' || task.trigger?.kind === cadence
     const protocolMatch = protocols.length === 0 || config.connections.some((connection) =>
       protocols.includes(connection.protocol) &&
       ((connection.source.kind === 'task' && connection.source.id === task.id) ||
@@ -112,7 +139,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
   }), [applicableTasks, cadence, config.connections, flaggedOnly, protocols, taskVisibility])
   const filteredTaskIds = useMemo(() => new Set(filteredTasks.map((task) => task.id)), [filteredTasks])
   const visibleTasks = useMemo(() => filteredTasks.filter((task) =>
-    matchesSearch(task.name, task.type, task.description, task.trigger.label, task.trigger.kind),
+    matchesSearch(task.name, task.type, task.description, task.trigger?.label, task.trigger?.kind),
   ), [filteredTasks, matchesSearch])
   const taskIds = useMemo(() => new Set(visibleTasks.map((task) => task.id)), [visibleTasks])
   const filteredConnections = useMemo(() => config.connections.filter((connection) => {
@@ -154,10 +181,11 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
     if (!stage) return
     const deviceArea = deviceAreaRef.current
     if (deviceArea) {
-      const ratio = screen.width / screen.height
+      const ratio = representation === 'web' ? 16 / 10 : representation === 'desktop' ? 16 / 9 : representation === 'diagram' ? 4 / 3 : screen.width / screen.height
       const availableWidth = Math.max(120, deviceArea.clientWidth - 4)
       const availableHeight = Math.max(220, deviceArea.clientHeight - 28)
-      const nextWidth = Math.max(120, Math.min(350, availableWidth, availableHeight * ratio))
+      const maximumWidth = representation === 'phone' ? 350 : representation === 'diagram' ? 520 : 680
+      const nextWidth = Math.max(120, Math.min(maximumWidth, availableWidth, availableHeight * ratio))
       setFittedWidth((current) => Math.abs(current - nextWidth) > 1 ? nextWidth : current)
     }
     const stageRect = stage.getBoundingClientRect()
@@ -203,7 +231,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
       return [{ id: connection.id, path, x: (x1 + x2) / 2, y: (y1 + y2) / 2 }]
     })
     setGeometry(lines)
-  }, [screen.height, screen.width, visibleConnections])
+  }, [representation, screen.height, screen.width, visibleConnections])
 
   useLayoutEffect(() => {
     measure()
@@ -254,7 +282,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
       aria-pressed={selected}
     >
       <span className="runtime-task-glyph" aria-hidden="true">↻</span>
-      <span className="runtime-task-copy"><small>{task.type}</small><strong>{task.name}</strong><em>{task.trigger.label}</em></span>
+      <span className="runtime-task-copy"><small>{task.type}</small><strong>{task.name}</strong><em>{task.trigger?.label ?? 'Background task'}</em></span>
       {appWide && <span className="task-scope-badge">APP-WIDE</span>}
       <i className="state-dot" aria-hidden="true" />
     </button>
@@ -262,12 +290,22 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
 
   const screenTasks = visibleTasks.filter((task) => task.scope.kind === 'screen')
   const globalTasks = visibleTasks.filter((task) => task.scope.kind === 'app')
+  const canvasControls = <div className={`map-floating-controls${representationOpen ? ' expanded' : ''}`} aria-label="Canvas controls" onClick={(event) => event.stopPropagation()}>
+    <button className={mapMode === 'preview' ? 'active' : ''} type="button" aria-label="Show screen preview" title="Screen preview" onClick={() => setMapMode('preview')}>▣</button>
+    <button className={mapMode === 'overview' ? 'active' : ''} type="button" aria-label="Show system overview" title="System overview" onClick={() => setMapMode('overview')}>⌘</button>
+    <button className={forcedRepresentation ? 'active' : ''} type="button" aria-expanded={representationOpen} aria-label="Choose preview representation" title="Choose preview representation" onClick={() => setRepresentationOpen((open) => !open)}>◫</button>
+    {representationOpen && <div className="representation-options" aria-label="Preview representation">
+      {([{ id: 'phone', icon: '▯', label: 'Phone' }, { id: 'web', icon: '⌁', label: 'Web' }, { id: 'desktop', icon: '▣', label: 'Desktop' }, { id: 'diagram', icon: '⌘', label: 'Diagram' }] as const).map((item) => <button className={representation === item.id ? 'active' : ''} type="button" key={item.id} title={`Force ${item.label} representation`} aria-label={`Force ${item.label} representation`} onClick={() => { setForcedRepresentation(item.id); setRepresentationOpen(false) }}>{item.icon}</button>)}
+      <button type="button" title="Use screen default representation" aria-label="Use screen default representation" onClick={() => { setForcedRepresentation(null); setRepresentationOpen(false) }}>↺</button>
+    </div>}
+  </div>
 
   return (
     <section className="map-workspace" aria-label="Application map">
       <div className="map-toolbar">
-        <div><span className="live-dot" />Architecture map <span className="muted">· {visibleConnections.length} visible paths</span></div>
-        <div className="map-toolbar-actions">
+        <div className="map-title"><button className="map-filter-trigger" type="button" aria-expanded={filtersOpen} aria-label={filtersOpen ? 'Close map controls' : 'Open map controls'} title={filtersOpen ? 'Close map controls' : 'Open map controls'} onClick={onToggleFilters}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" /></svg>{hasActiveFilters && <i />}</button><span className="live-dot" />Architecture map <span className="muted">· {visibleConnections.length} visible paths</span></div>
+          <div className="map-toolbar-actions">
+          {mapMode === 'preview' && <>
           <label className="map-search">
             <span aria-hidden="true">⌕</span>
             <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Filter canvas items…" aria-label="Filter canvas items" />
@@ -278,8 +316,10 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
             <button onClick={() => setZoom(1)} aria-label="Reset zoom to fit" title="100% fits the device viewport">{Math.round(zoom * 100)}%</button>
             <button onClick={() => setZoom((value) => Math.min(1.3, value + .1))} aria-label="Zoom in">+</button>
           </div>
+          </>}
+          </div>
         </div>
-      </div>
+      {mapMode === 'overview' ? <div className="flow-stage overview-stage">{canvasControls}<ScreenSystemOverview config={config} selection={selection} protocols={protocols} cadence={cadence} onScreen={onScreen} onSelect={onSelect} /></div> : <>
       <div className={`flow-stage${applicableTasks.length ? ' has-runtime' : ''}`} ref={stageRef} onScroll={measure} onClick={() => onSelect(null)}>
         <svg className="flow-lines" aria-hidden="true" style={{ width: stageExtent.width, height: stageExtent.height }}>
           <defs>
@@ -300,11 +340,19 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
             </g>
           })}
         </svg>
+        {canvasControls}
         <div className="systems-column left" onScroll={measure}>{leftSystems.map((system) => systemCard(system.id))}</div>
         <div className="device-wrap" ref={deviceAreaRef}>
-          <div className={`device-frame device-${config.app.device}`} style={{ aspectRatio: `${screen.width} / ${screen.height}`, width: fittedWidth * zoom }}>
-            {screen.showSystemUi !== false && <div className="device-speaker" />}
-            <div className={`app-screen${contentHeight > screen.height ? ' scrollable' : ''}`} style={{ background: config.app.phoneBackgroundColor ?? '#171b27' }} onScroll={measure}>
+          <div className={`device-frame device-${representation}`} style={{ aspectRatio: representation === 'web' ? '16 / 10' : representation === 'desktop' ? '16 / 9' : representation === 'diagram' ? '4 / 3' : `${screen.width} / ${screen.height}`, width: fittedWidth * zoom }}>
+            {isBrowser && <div className="browser-chrome"><i /><i /><i /><span>app.visiflow</span></div>}
+            {isPhone && screen.showSystemUi !== false && <div className="device-speaker" />}
+            {representation === 'diagram' ? <div className="screen-diagram-canvas">
+              <header><span>Screen structure</span><strong>{screen.name}</strong><small>{visibleComponents.length} components</small></header>
+              <div className="screen-diagram-layout">
+                {visibleComponents.map((component) => <DiagramComponent key={component.id} component={component} scenario={scenario} selected={sameRef(selection, { kind: 'component', id: component.id })} register={register} onSelect={() => onSelect({ kind: 'component', id: component.id })} />)}
+                {visibleComponents.length === 0 && <p>No components on this screen.</p>}
+              </div>
+            </div> : <div className={`app-screen${contentHeight > screen.height ? ' scrollable' : ''}`} style={{ background: config.app.phoneBackgroundColor ?? '#171b27' }} onScroll={measure}>
               {screen.showSystemUi !== false && <div className="status-bar"><span>9:41</span><span>● ◒ ▰</span></div>}
               <div className="screen-canvas" style={{
                 height: `${(contentHeight / screen.height) * 100}%`,
@@ -326,8 +374,8 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
                 onSelect={() => onSelect({ kind: 'component', id: component.id })}
               />)}
               </div>
-            </div>
-            {screen.showSystemUi !== false && <div className="home-indicator" />}
+            </div>}
+            {isPhone && screen.showSystemUi !== false && <div className="home-indicator" />}
           </div>
           <p className="screen-caption" style={{ width: fittedWidth * zoom }}><strong>{screen.name}</strong><span>{screen.width} × {screen.height}{contentHeight > screen.height ? ` · ${contentHeight}px scroll` : ''}</span></p>
         </div>
@@ -348,6 +396,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
         </section>}
       </div>
       <div className="map-legend"><span><i className="legend-active" /> Active</span><span><i className="legend-inactive" /> Inactive</span><span><i className="legend-flow" /> Request path</span><span><i className="legend-internal" /> Internal flow</span></div>
+      </>}
     </section>
   )
 }

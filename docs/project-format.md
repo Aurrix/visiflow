@@ -80,6 +80,8 @@ This Markdown body documents the project and becomes its rendered application de
 
 ### Screen navigation hierarchy
 
+Each screen can optionally set `representation` to `phone`, `web`, `desktop`, or `diagram`. It controls the container used to render that screen and overrides the app-level device default.
+
 The viewer and editor render screens as a grouped navigation tree. Existing flat screen arrays remain valid.
 
 - `group` assigns a root screen to a top-level group. Descendants inherit the root group.
@@ -150,11 +152,16 @@ tasks:
     type: Data refresh
     description: Loads current offers.
     scope: { kind: screen, screenId: offers }
-    trigger: { kind: lifecycle, label: When the offers screen opens }
     defaultState: active
 ```
 
-The task owns its trigger. Connections involving a task therefore omit `cadence`. Use `protocol: Internal` for component-to-task or task-to-task control flow, and the real protocol for task-to-system requests. Direct connections without a task still require `cadence`.
+Screen background tasks are independent work associated with their screen. They never connect directly to components and normally have no trigger. Add an optional `trigger` only for independently timed work, such as an app-wide polling or scheduled task:
+
+```yaml
+trigger: { kind: polling, label: Every 10 seconds, intervalMs: 10000 }
+```
+
+Connections involving a task always omit `cadence`; optional task timing belongs in `trigger`. Use `protocol: Internal` for task-to-task control flow, and the real protocol for task-to-system requests. Direct connections without a task still require `cadence`.
 
 Each scenario has both `componentStates` and `taskStates`. Missing entries fall back to the node's `defaultState`, then to `active`.
 
@@ -165,8 +172,8 @@ VisiFlow v2 deliberately does not guess which cadence-bearing paths are backgrou
 1. Change `visiflow: 1` to `visiflow: 2` in the project manifest and every component document.
 2. Add a `tasks` array to the project manifest.
 3. Add `taskStates: {}` to every scenario.
-4. For each background path, create a task and move its cadence into the task's `trigger`.
-5. Split UI-driven work into an `Internal` component-to-task connection and a task-to-system connection. Remove `cadence` from both task-related connections.
+4. For each background path, create a task. Add `trigger` only when it has an independent cadence; screen-scoped work usually has none.
+5. Keep screen background work independent of components. Model its task-to-system connections and remove `cadence` from all task-related connections.
 6. Leave direct component/system and system/system paths intact with their existing cadence.
 
 Opening v1 content returns an explicit migration error.

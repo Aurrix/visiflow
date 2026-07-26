@@ -77,6 +77,7 @@ export interface AppScreen {
   backgroundSize?: string
   backgroundPosition?: string
   showSystemUi?: boolean
+  representation?: 'phone' | 'web' | 'desktop' | 'diagram'
 }
 
 export interface ExternalSystem {
@@ -100,7 +101,7 @@ export interface BackgroundTask {
   description: string
   flagged?: boolean
   scope: TaskScope
-  trigger: Cadence
+  trigger?: Cadence
   defaultState?: ComponentState
 }
 

@@ -65,9 +65,9 @@ export function DetailPanel({ config, scenario, selection, onClose, onToggleFlag
       {flagTarget && onToggleFlag && <button type="button" className={`detail-flag${flagged ? ' active' : ''}`} onClick={() => onToggleFlag(flagTarget, !flagged)}>{flagged ? '★ Flagged' : '☆ Flag item'}</button>}
       <MarkdownText className="detail-description" demoteHeadings>{description}</MarkdownText>
       {selectedTask && <div className="task-trigger-detail">
-        <span>Trigger</span>
-        <strong>{selectedTask.trigger.label}</strong>
-        <small>{selectedTask.trigger.kind} · {taskState(selectedTask, scenario)}</small>
+        <span>{selectedTask.trigger ? 'Trigger' : 'Execution'}</span>
+        <strong>{selectedTask.trigger?.label ?? 'Background task'}</strong>
+        <small>{selectedTask.trigger?.kind ?? 'Runs with its screen'} · {taskState(selectedTask, scenario)}</small>
       </div>}
       <div className="detail-stat-row">
         <span><strong>{connections.length}</strong> paths</span>
@@ -79,13 +79,17 @@ export function DetailPanel({ config, scenario, selection, onClose, onToggleFlag
         {connections.map((connection) => {
           const outgoing = connection.source.kind === selection.kind && connection.source.id === selection.id
           const counterpart = outgoing ? connection.target : connection.source
+          const flaggedConnection = (connection.source.kind === 'component' && config.components.find((item) => item.id === connection.source.id)?.flagged) ||
+            (connection.target.kind === 'component' && config.components.find((item) => item.id === connection.target.id)?.flagged) ||
+            (connection.source.kind === 'task' && config.tasks.find((item) => item.id === connection.source.id)?.flagged) ||
+            (connection.target.kind === 'task' && config.tasks.find((item) => item.id === connection.target.id)?.flagged)
           return (
             <article className="request-card" key={connection.id}>
               <div className="request-topline">
                 <span className={`direction ${outgoing ? 'out' : 'in'}`}>{outgoing ? '↗ OUT' : '↙ IN'}</span>
                 <span className="protocol">{connection.method ? `${connection.protocol} · ${connection.method}` : connection.protocol}</span>
               </div>
-              <h4>{connection.name}</h4>
+              <h4>{flaggedConnection && <i className="connection-warning" title="Flagged request">&#9888;</i>}{connection.name}</h4>
               <p className="counterpart">{outgoing ? 'To' : 'From'} {endpointName(config, counterpart)}</p>
               {connection.endpoint && <code>{connection.endpoint}</code>}
               <p>{connection.description}</p>

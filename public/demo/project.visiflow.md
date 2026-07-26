@@ -25,6 +25,41 @@ screens:
     height: 844
     background: "#f5f5f5"
     showSystemUi: false
+  - id: confirm-pickup
+    name: Confirm pickup
+    parentId: choose-ride
+    order: 2
+    width: 390
+    height: 844
+    background: "#f5f5f5"
+    showSystemUi: false
+    representation: web
+  - id: driver-arrival
+    name: Driver arrival
+    parentId: trip-progress
+    order: 1
+    width: 390
+    height: 844
+    background: "#f5f5f5"
+    showSystemUi: false
+  - id: trip-summary
+    name: Trip summary
+    parentId: trip-progress
+    order: 2
+    width: 390
+    height: 844
+    background: "#f5f5f5"
+    showSystemUi: false
+    representation: desktop
+  - id: safety-center
+    name: Safety center
+    group: Rider journey
+    order: 2
+    width: 390
+    height: 844
+    background: "#f5f5f5"
+    showSystemUi: false
+    representation: diagram
 tasks:
   - id: rider-session
     name: Maintain rider session
@@ -65,9 +100,6 @@ tasks:
     scope:
       kind: screen
       screenId: choose-ride
-    trigger:
-      kind: lifecycle
-      label: When ride choices open
     defaultState: active
   - id: refresh-routes
     name: Refresh route options
@@ -76,9 +108,6 @@ tasks:
     scope:
       kind: screen
       screenId: trip-progress
-    trigger:
-      kind: lifecycle
-      label: When trip progress opens
     defaultState: active
   - id: prefetch-map-tiles
     name: Prefetch map tiles
@@ -87,10 +116,51 @@ tasks:
     scope:
       kind: screen
       screenId: trip-progress
+    defaultState: active
+  - id: sync-driver-availability
+    name: Sync driver availability
+    type: Availability sync
+    description: Refreshes the cached driver availability feed on a fixed schedule.
+    scope:
+      kind: app
     trigger:
       kind: scheduled
-      label: Every 6 hours
-      intervalMs: 21600000
+      label: Every 30 minutes
+      intervalMs: 1800000
+    defaultState: active
+  - id: poll-trip-location
+    name: Poll trip location
+    type: Location poller
+    description: Polls the latest vehicle position while a trip is active.
+    scope:
+      kind: app
+    trigger:
+      kind: polling
+      label: Every 10 seconds while on trip
+      intervalMs: 10000
+    defaultState: active
+  - id: reconcile-payment
+    name: Reconcile trip payment
+    type: Payment worker
+    description: Confirms the final trip total and payment status after a ride completes.
+    scope:
+      kind: screen
+      screenId: trip-summary
+    trigger:
+      kind: lifecycle
+      label: When the trip summary opens
+    defaultState: active
+  - id: monitor-safety-case
+    name: Monitor safety case
+    type: Safety workflow
+    description: Keeps an open safety report synchronized while the safety center is visible.
+    scope:
+      kind: screen
+      screenId: safety-center
+    trigger:
+      kind: polling
+      label: Every 20 seconds while a case is open
+      intervalMs: 20000
     defaultState: active
 systems:
   - id: identity-service
@@ -135,6 +205,20 @@ systems:
     color: "#c68cff"
     icon: CDN
     placement: left
+  - id: payments-service
+    name: Payments ledger
+    type: Payment API
+    description: Authorizes payment methods and records final ride charges.
+    color: "#f081a8"
+    icon: PAY
+    placement: right
+  - id: safety-service
+    name: Safety response
+    type: Incident API
+    description: Receives rider safety reports and returns incident status.
+    color: "#ec6b70"
+    icon: SOS
+    placement: left
 scenarios:
   - id: normal
     name: Normal operation
@@ -157,11 +241,29 @@ scenarios:
     taskStates:
       refresh-routes: inactive
       prefetch-map-tiles: inactive
+  - id: payment-review
+    name: Payment review
+    screenId: trip-summary
+    componentStates:
+      receipt-card: active
+    taskStates:
+      reconcile-payment: active
+  - id: safety-follow-up
+    name: Safety follow-up
+    screenId: safety-center
+    componentStates:
+      safety-card: active
+    taskStates:
+      monitor-safety-case: active
 initialScenarioId: normal
 componentFiles:
   - screens/login/login-card.visiflow.md
   - screens/offers/coupons-card.visiflow.md
   - screens/offers/new-component.visiflow.md
+  - screens/confirm-pickup/pickup-card.visiflow.md
+  - screens/driver-arrival/driver-card.visiflow.md
+  - screens/trip-summary/receipt-card.visiflow.md
+  - screens/safety-center/safety-card.visiflow.md
 connections:
   - id: refresh-rider-session
     name: Refresh rider session
@@ -235,6 +337,54 @@ connections:
     method: GET
     endpoint: /maps/nearby/tiles
     description: Warms nearby map tiles in the application cache.
+  - id: sync-driver-availability
+    name: Sync driver availability
+    source:
+      kind: task
+      id: sync-driver-availability
+    target:
+      kind: system
+      id: ride-marketplace
+    protocol: GraphQL
+    method: POST
+    endpoint: /graphql
+    description: Refreshes the cached availability feed for nearby drivers.
+  - id: poll-trip-location
+    name: Poll trip location
+    source:
+      kind: task
+      id: poll-trip-location
+    target:
+      kind: system
+      id: ride-marketplace
+    protocol: HTTPS
+    method: GET
+    endpoint: /v1/trips/current/location
+    description: Reads the current vehicle location while a trip is underway.
+  - id: reconcile-trip-payment
+    name: Reconcile trip payment
+    source:
+      kind: task
+      id: reconcile-payment
+    target:
+      kind: system
+      id: payments-service
+    protocol: HTTPS
+    method: POST
+    endpoint: /v1/payments/reconcile
+    description: Reconciles the completed trip with the rider's payment method.
+  - id: monitor-safety-case
+    name: Monitor safety case
+    source:
+      kind: task
+      id: monitor-safety-case
+    target:
+      kind: system
+      id: safety-service
+    protocol: HTTPS
+    method: GET
+    endpoint: /v1/safety/cases/current
+    description: Reads the latest status for an open rider safety case.
 textureLayers:
   - id: uber-overview
     name: Uber overview

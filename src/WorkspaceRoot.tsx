@@ -11,6 +11,7 @@ import {
 } from './project-loader'
 import { forgetRecentProject, recentProjects, rememberRecentProject, type RecentProject } from './recent-projects'
 import { saveProjectWorkspace } from './project-workspace'
+import { downloadDrawio } from './drawio-export'
 import type { EndpointRef, LoadedProject, ProjectWorkspace, VisiFlowConfig } from './types'
 
 type ProjectMode = 'view' | 'edit'
@@ -422,6 +423,7 @@ export function WorkspaceRoot() {
   }
 
   const controls = <div className="workspace-controls" aria-label="Project controls">
+    <button type="button" className="secondary-button export-drawio" onClick={() => downloadDrawio(config)} aria-label="Export Draw.io" title="Export Draw.io"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11" /><path d="m8 10 4 4 4-4" /><path d="M5 16v4h14v-4" /></svg></button>
     <button type="button" className="secondary-button open-folder" onClick={() => void openFolder()}>Open</button>
     <div className="mode-controls">
     <div className="mode-switch" aria-label="Workspace mode">

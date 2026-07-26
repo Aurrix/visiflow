@@ -102,7 +102,7 @@ function ComponentCalls({ config, component, workspace, commit, onAssignOwner, o
     (connection.target.kind === 'component' && connection.target.id === component.id),
   )
   const peerOptions = [
-    ...config.tasks.map((task) => ({ value: `task:${task.id}`, label: `${task.name} · Task` })),
+    ...config.tasks.filter((task) => task.scope.kind === 'app').map((task) => ({ value: `task:${task.id}`, label: `${task.name} · Global task` })),
     ...config.systems.map((system) => ({ value: `system:${system.id}`, label: system.name })),
     ...config.components.filter((item) => item.id !== component.id).map((item) => ({ value: `component:${item.id}`, label: item.name })),
   ]
@@ -281,7 +281,6 @@ export function DiskConfigEditor({
           type: 'Background task',
           description: '',
           scope: { kind: 'screen', screenId },
-          trigger: { kind: 'scheduled', label: 'On schedule' },
           defaultState: 'active',
         })
       } else if (kind === 'system') {
@@ -626,7 +625,7 @@ export function DiskConfigEditor({
               item.visual.kind = 'image'
             })
             onPersistBoundary()
-          }} /> : workspaceView === 'components' ? <div className="component-editor-stage"><header><span>Component editor</span><strong>Connect components to tasks and systems</strong><p>Select a component, then use <em>Add call</em> in the inspector to create and configure its request path.</p></header><div className="component-editor-nodes">{config.components.map((item) => <button type="button" key={item.id} className={selection.kind === 'component' && selection.id === item.id ? 'selected' : ''} onClick={() => onSelection({ kind: 'component', id: item.id })}><small>{config.screens.find((screen) => screen.id === item.screenId)?.name ?? item.screenId}</small><strong>{item.name}</strong><span>{item.type}</span></button>)}{config.tasks.map((item) => <button type="button" key={item.id} className="endpoint-node task" onClick={() => onSelection({ kind: 'task', id: item.id })}><small>Task</small><strong>{item.name}</strong></button>)}{config.systems.map((item) => <button type="button" key={item.id} className="endpoint-node system" onClick={() => onSelection({ kind: 'system', id: item.id })}><small>System</small><strong>{item.name}</strong></button>)}</div></div> : <div className="architecture-stage"><div><span>Architecture workspace</span><strong>Tasks, systems, and connections</strong><p>Select an item from the sidebar to edit its runtime details. New request paths are created from a component’s <em>Add call</em> action.</p></div></div>}
+          }} /> : workspaceView === 'components' ? <div className="component-editor-stage"><header><span>Component editor</span><strong>Connect components to systems and global tasks</strong><p>Screen background tasks are independent of components and are configured in the architecture workspace.</p></header><div className="component-editor-nodes">{config.components.map((item) => <button type="button" key={item.id} className={selection.kind === 'component' && selection.id === item.id ? 'selected' : ''} onClick={() => onSelection({ kind: 'component', id: item.id })}><small>{config.screens.find((screen) => screen.id === item.screenId)?.name ?? item.screenId}</small><strong>{item.name}</strong><span>{item.type}</span></button>)}{config.tasks.map((item) => <button type="button" key={item.id} className="endpoint-node task" onClick={() => onSelection({ kind: 'task', id: item.id })}><small>{item.scope.kind === 'screen' ? 'Screen background task' : 'Global task'}</small><strong>{item.name}</strong></button>)}{config.systems.map((item) => <button type="button" key={item.id} className="endpoint-node system" onClick={() => onSelection({ kind: 'system', id: item.id })}><small>System</small><strong>{item.name}</strong></button>)}</div></div> : <div className="architecture-stage"><div><span>Architecture workspace</span><strong>Tasks, systems, and connections</strong><p>Select an item from the sidebar to edit its runtime details. Screen background tasks connect to systems or other tasks, not components.</p></div></div>}
         </section>
 
         <aside className="property-inspector">
@@ -727,6 +726,7 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
       <Field label="Image sizing"><input value={item.backgroundSize ?? ''} placeholder="100% auto" onChange={(event) => commit((draft) => { draft.screens.find((value) => value.id === item.id)!.backgroundSize = event.target.value || undefined })} /></Field>
       <Field label="Image position"><input value={item.backgroundPosition ?? ''} placeholder="top center" onChange={(event) => commit((draft) => { draft.screens.find((value) => value.id === item.id)!.backgroundPosition = event.target.value || undefined })} /></Field>
       <Field label="System UI"><select value={String(item.showSystemUi !== false)} onChange={(event) => commit((draft) => { draft.screens.find((value) => value.id === item.id)!.showSystemUi = event.target.value === 'true' })}><option value="true">Show</option><option value="false">Hide</option></select></Field>
+      <Field label="Representation"><select value={item.representation ?? 'phone'} onChange={(event) => commit((draft) => { draft.screens.find((value) => value.id === item.id)!.representation = event.target.value as NonNullable<typeof item.representation> })}>{['phone', 'web', 'desktop', 'diagram'].map((value) => <option key={value} value={value}>{value}</option>)}</select></Field>
       <div className="inspector-action-row wide">
         <ImageButton label={item.backgroundImage ? 'Replace screenshot' : 'Import screenshot'} onComplete={onPersistBoundary} onImage={(image) => commit((draft) => {
           const target = draft.screens.find((value) => value.id === item.id)!
@@ -824,10 +824,12 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
       })}><option value="screen">Current screen</option><option value="app">App-wide</option></select></Field>
       {item.scope.kind === 'screen' && <Field label="Screen"><select value={item.scope.screenId} onChange={(event) => update((value) => { value.scope = { kind: 'screen', screenId: event.target.value } })}>{config.screens.map((value) => <option key={value.id} value={value.id}>{value.name}</option>)}</select></Field>}
       <Field label="Default state"><select value={item.defaultState ?? 'active'} onChange={(event) => update((value) => { value.defaultState = event.target.value as ComponentState })}><option>active</option><option>inactive</option></select></Field>
-      <Field label="Trigger"><select value={item.trigger.kind} onChange={(event) => update((value) => { value.trigger.kind = event.target.value as CadenceKind })}>{cadenceKinds.map((value) => <option key={value}>{value}</option>)}</select></Field>
-      <Field label="Trigger label" wide><input value={item.trigger.label} onChange={(event) => update((value) => { value.trigger.label = event.target.value })} /></Field>
-      <Field label="Interval ms"><input type="number" min="1" value={item.trigger.intervalMs ?? ''} onChange={(event) => update((value) => { value.trigger.intervalMs = event.target.value ? number(event.target.value, 1) : undefined })} /></Field>
-      <Field label="Cron"><input value={item.trigger.cron ?? ''} onChange={(event) => update((value) => { value.trigger.cron = event.target.value || undefined })} /></Field>
+      <Field label="Trigger"><select value={item.trigger?.kind ?? 'none'} onChange={(event) => update((value) => { value.trigger = event.target.value === 'none' ? undefined : { kind: event.target.value as CadenceKind, label: event.target.value } })}><option value="none">None (background task)</option>{cadenceKinds.map((value) => <option key={value} value={value}>{value}</option>)}</select></Field>
+      {item.trigger && <>
+        <Field label="Trigger label" wide><input value={item.trigger.label} onChange={(event) => update((value) => { if (value.trigger) value.trigger.label = event.target.value })} /></Field>
+        <Field label="Interval ms"><input type="number" min="1" value={item.trigger.intervalMs ?? ''} onChange={(event) => update((value) => { if (value.trigger) value.trigger.intervalMs = event.target.value ? number(event.target.value, 1) : undefined })} /></Field>
+        <Field label="Cron"><input value={item.trigger.cron ?? ''} onChange={(event) => update((value) => { if (value.trigger) value.trigger.cron = event.target.value || undefined })} /></Field>
+      </>}
       <Field label="Description" wide><textarea value={item.description} onChange={(event) => update((value) => { value.description = event.target.value })} /></Field>
     </div>
   }

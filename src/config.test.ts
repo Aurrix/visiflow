@@ -21,9 +21,9 @@ describe('parseConfig', () => {
     const assembled = assembleProject(manifestPath, manifest.data.meta, manifest.data.body, documents, 'http')
     expect(assembled.ok).toBe(true)
     if (assembled.ok) {
-      expect(assembled.data.config.tasks).toHaveLength(6)
+      expect(assembled.data.config.tasks).toHaveLength(10)
       expect(new Set(assembled.data.config.connections.map((connection) => connection.protocol))).toEqual(new Set([
-        'Internal', 'HTTPS', 'GraphQL', 'gRPC', 'Kafka', 'WebSocket', 'HTTP/2',
+        'HTTPS', 'GraphQL', 'gRPC', 'Kafka', 'WebSocket', 'HTTP/2',
       ]))
       const rideCard = assembled.data.config.components.find((component) => component.id === 'ride-card')
       expect(rideCard?.visual).toEqual(expect.objectContaining({
@@ -67,6 +67,10 @@ describe('parseConfig', () => {
     })
     expect(parseConfig(valid).ok).toBe(true)
 
+    const untimedScreenTask = structuredClone(valid)
+    delete untimedScreenTask.tasks.find((task) => task.id === 'sync')?.trigger
+    expect(parseConfig(untimedScreenTask).ok).toBe(true)
+
     const missing = structuredClone(valid)
     missing.screens[1].parentId = 'missing'
     const missingResult = parseConfig(missing)
@@ -108,7 +112,7 @@ describe('parseConfig', () => {
       trigger: { kind: 'polling', label: 'Every minute', intervalMs: 60000 },
     })
     valid.scenarios[0].taskStates.sync = 'inactive'
-    valid.connections[0].target = { kind: 'task', id: 'sync' }
+    valid.connections[0].source = { kind: 'task', id: 'sync' }
     delete valid.connections[0].cadence
     expect(parseConfig(valid).ok).toBe(true)
 
@@ -117,6 +121,13 @@ describe('parseConfig', () => {
     const cadenceResult = parseConfig(duplicateCadence)
     expect(cadenceResult.ok).toBe(false)
     if (!cadenceResult.ok) expect(cadenceResult.errors.join('\n')).toContain('inherit cadence')
+
+    const componentToScreenTask = structuredClone(valid)
+    componentToScreenTask.connections[0].source = { kind: 'component', id: 'button' }
+    componentToScreenTask.connections[0].target = { kind: 'task', id: 'sync' }
+    const componentToScreenTaskResult = parseConfig(componentToScreenTask)
+    expect(componentToScreenTaskResult.ok).toBe(false)
+    if (!componentToScreenTaskResult.ok) expect(componentToScreenTaskResult.errors.join('\n')).toContain('cannot connect directly')
 
     const invalidScope = structuredClone(valid)
     invalidScope.tasks[0].scope = { kind: 'screen', screenId: 'missing' }

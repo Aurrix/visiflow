@@ -32,7 +32,7 @@ export function connectionCadences(config: VisiFlowConfig, connection: Connectio
     .filter((ref) => ref.kind === 'task')
     .map((ref) => ref.id)
   if (taskIds.length) {
-    return config.tasks.filter((task) => taskIds.includes(task.id)).map((task) => task.trigger)
+    return config.tasks.flatMap((task) => taskIds.includes(task.id) && task.trigger ? [task.trigger] : [])
   }
   return connection.cadence ? [connection.cadence] : []
 }
