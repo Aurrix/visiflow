@@ -49,6 +49,8 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls,
   const [flaggedOnly, setFlaggedOnly] = useState(false)
   const [mapSearch, setMapSearch] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [detailCollapsed, setDetailCollapsed] = useState(false)
+  const [detailWidth, setDetailWidth] = useState(340)
   const scenarioId = navigation?.scenarioId ?? localScenarioId
   const screenId = navigation?.screenId ?? localScreenId
   const selection = navigation ? navigation.selection : localSelection
@@ -73,6 +75,18 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls,
   const hasActiveFilters = selectedProtocols.length > 0 || cadence !== 'all' || taskVisibility !== 'all' || flaggedOnly
   const taskVisibilityLabel = taskVisibility === 'all' ? 'All tasks' : taskVisibility === 'hide-global' ? 'Hide global tasks' : 'Hide background tasks'
   const cycleTaskVisibility = () => setTaskVisibility((value) => value === 'all' ? 'hide-global' : value === 'hide-global' ? 'hide-background' : 'all')
+  const beginDetailResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = detailWidth
+    const onMove = (moveEvent: PointerEvent) => setDetailWidth(Math.max(260, Math.min(560, startWidth + startX - moveEvent.clientX)))
+    const onEnd = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onEnd)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onEnd)
+  }
 
   const changeScenario = (nextId: string) => {
     setScenarioId(nextId)
@@ -111,9 +125,9 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls,
         <div className="app-identity"><span className="app-avatar">{config.app.name.slice(0, 1)}</span><span><strong>{config.app.name}</strong><small>{config.app.platform}</small></span>{workspaceControls}</div>
       </header>
 
-      <main className={`main-layout view-${view}`}>
-        {view === 'map' && filtersOpen && <aside className="filter-sidebar expanded" aria-label="View filters">
-          <>
+      <main className={`main-layout view-${view}${detailCollapsed ? ' detail-collapsed' : ''}`} style={{ '--detail-width': `${detailCollapsed ? 42 : detailWidth}px` } as React.CSSProperties}>
+        {view === 'map' && <aside className={`filter-sidebar ${filtersOpen ? 'expanded' : 'collapsed'}`} aria-label="View filters">
+          {filtersOpen && <>
             <section className="sidebar-section protocol-section">
               <header><span>Protocols</span><small>{selectedProtocols.length || 'All'}</small></header>
               <div className="protocol-toggles">
@@ -144,13 +158,14 @@ export function VisiFlow({ config, onOpenProject, navigation, workspaceControls,
               setFlaggedOnly(false)
               setCatalogScreen('all')
             }}>Clear filters</button>}
-          </>
+          </>}
         </aside>}
 
         {view === 'map' ? <AppMap config={config} screenId={screenId} scenario={scenario} selection={selection} protocols={selectedProtocols} cadence={cadence} taskVisibility={taskVisibility} flaggedOnly={flaggedOnly} search={mapSearch} onSearch={setMapSearch} onScreen={setScreenId} onSelect={setSelection} filtersOpen={filtersOpen} hasActiveFilters={hasActiveFilters} onToggleFilters={() => setFiltersOpen((open) => !open)} /> :
           view === 'catalog' ? <Catalog config={config} scenario={scenario} selection={selection} search={search} screen={catalogScreen} protocols={selectedProtocols} availableProtocols={protocols} cadence={cadence} cadences={cadences} state={stateFilter} onSearch={setSearch} onScreen={setCatalogScreen} onScenario={changeScenario} onToggleProtocol={toggleProtocol} onClearProtocols={() => setSelectedProtocols([])} onCadence={setCadence} onState={setStateFilter} onSelect={setSelection} onShowInApp={showInApp} /> :
             <SystemsCatalog config={config} selection={selection} search={systemsSearch} protocols={selectedProtocols} availableProtocols={protocols} cadence={cadence} cadences={cadences} onSearch={setSystemsSearch} onToggleProtocol={toggleProtocol} onClearProtocols={() => setSelectedProtocols([])} onCadence={setCadence} onSelect={setSelection} />}
-        <DetailPanel config={config} scenario={scenario} selection={selection} onClose={() => setSelection(null)} onToggleFlag={onToggleFlag} />
+        {!detailCollapsed && <div className="detail-resize-handle" onPointerDown={beginDetailResize} role="separator" aria-label="Resize details panel" aria-orientation="vertical" />}
+        <DetailPanel config={config} scenario={scenario} selection={selection} collapsed={detailCollapsed} onToggleCollapsed={() => setDetailCollapsed((value) => !value)} onClose={() => setSelection(null)} onToggleFlag={onToggleFlag} />
       </main>
     </div>
   )

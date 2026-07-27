@@ -1,4 +1,4 @@
-import type { AppComponent, BackgroundTask, Cadence, CadenceKind, ComponentState, Connection, EndpointRef, Scenario, VisiFlowConfig, VisualStyle } from './types'
+import type { AppComponent, BackgroundTask, Cadence, CadenceKind, ComponentState, Connection, EndpointRef, RequestPath, Scenario, VisiFlowConfig, VisualStyle } from './types'
 
 export type Selection = EndpointRef | null
 
@@ -39,6 +39,13 @@ export function connectionCadences(config: VisiFlowConfig, connection: Connectio
 
 export function connectionMatchesCadence(config: VisiFlowConfig, connection: Connection, cadence: string) {
   return cadence === 'all' || connectionCadences(config, connection).some((item) => item.kind === cadence)
+}
+
+export function requestPathCadence(config: VisiFlowConfig, path: RequestPath): Cadence | undefined {
+  if (path.trigger) return path.trigger
+  const firstPhase = Math.min(...path.steps.map((step) => step.phase))
+  const entry = path.steps.filter((step) => step.phase === firstPhase).map((step) => config.connections.find((connection) => connection.id === step.connectionId)).filter((connection): connection is Connection => Boolean(connection))
+  return entry.flatMap((connection) => connectionCadences(config, connection))[0]
 }
 
 export function connectionsFor(config: VisiFlowConfig, ref: EndpointRef): Connection[] {

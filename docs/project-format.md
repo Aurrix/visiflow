@@ -82,6 +82,24 @@ This Markdown body documents the project and becomes its rendered application de
 
 Each screen can optionally set `representation` to `phone`, `web`, `desktop`, or `diagram`. It controls the container used to render that screen and overrides the app-level device default.
 
+### Propagated request paths
+
+`requestPaths` groups existing connection hops into one request that may pass through gateways or BFF systems. Steps are ordered by `phase`; steps in the same phase execute in parallel. Every path needs a trigger of its own or an entry hop with a task/connection trigger.
+
+```yaml
+requestPaths:
+  - id: request-ride
+    name: Request ride propagation
+    description: The rider BFF transforms and coordinates a ride request.
+    trigger: { kind: user-event, label: On ride request }
+    steps:
+      - { connectionId: client-to-bff, phase: 1, behavior: forward }
+      - { connectionId: bff-to-pricing, phase: 2, behavior: transform, label: Normalize fare query }
+      - { connectionId: bff-to-matching, phase: 2, behavior: fan-out }
+      - { connectionId: matching-to-bff, phase: 3, behavior: aggregate }
+      - { connectionId: bff-response, phase: 4, behavior: respond }
+```
+
 The viewer and editor render screens as a grouped navigation tree. Existing flat screen arrays remain valid.
 
 - `group` assigns a root screen to a top-level group. Descendants inherit the root group.

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { VisiFlowConfig } from './types'
+import type { Connection, VisiFlowConfig } from './types'
 
 export const idSchema = z.string().trim().min(1)
 export const componentStateSchema = z.enum(['active', 'inactive'])
@@ -126,6 +126,19 @@ export const connectionSchema = z.object({
   description: z.string(),
   cadence: cadenceSchema.optional(),
 })
+export const requestPathStepSchema = z.object({
+  connectionId: idSchema,
+  phase: z.number().int().positive(),
+  behavior: z.enum(['forward', 'transform', 'fan-out', 'aggregate', 'respond']),
+  label: z.string().min(1).optional(),
+})
+export const requestPathSchema = z.object({
+  id: idSchema,
+  name: z.string().min(1),
+  description: z.string(),
+  trigger: cadenceSchema.optional(),
+  steps: z.array(requestPathStepSchema).min(1),
+})
 export const scenarioSchema = z.object({
   id: idSchema,
   name: z.string().min(1),
@@ -144,6 +157,7 @@ export const runtimeConfigSchema = z.object({
   tasks: z.array(taskSchema),
   systems: z.array(systemSchema),
   connections: z.array(connectionSchema),
+  requestPaths: z.array(requestPathSchema).default([]),
   scenarios: z.array(scenarioSchema).min(1),
   initialScenarioId: idSchema.optional(),
 }).superRefine((value, context) => {
@@ -160,6 +174,7 @@ export const runtimeConfigSchema = z.object({
   unique(value.tasks, 'tasks')
   unique(value.systems, 'systems')
   unique(value.connections, 'connections')
+  unique(value.requestPaths, 'requestPaths')
   unique(value.scenarios, 'scenarios')
 
   const screenIds = new Set(value.screens.map((item) => item.id))
@@ -233,6 +248,25 @@ export const runtimeConfigSchema = z.object({
       if (requiredWidth > screen.width) context.addIssue({ code: 'custom', message: `Row "${rowId}" is wider than the screen`, path: ['screens', index] })
     })
   })
+  const pathSteps = new Map<string, { pathIndex: number; stepIndex: number }>()
+  value.requestPaths.forEach((path, pathIndex) => path.steps.forEach((step, stepIndex) => {
+    if (pathSteps.has(step.connectionId)) context.addIssue({ code: 'custom', message: `Connection "${step.connectionId}" belongs to more than one path`, path: ['requestPaths', pathIndex, 'steps', stepIndex, 'connectionId'] })
+    pathSteps.set(step.connectionId, { pathIndex, stepIndex })
+  }))
+  const connectionById = new Map(value.connections.map((connection) => [connection.id, connection]))
+  value.requestPaths.forEach((path, pathIndex) => {
+    const phases = new Set<number>()
+    path.steps.forEach((step, stepIndex) => {
+      const connection = connectionById.get(step.connectionId)
+      if (!connection) context.addIssue({ code: 'custom', message: 'Unknown connection', path: ['requestPaths', pathIndex, 'steps', stepIndex, 'connectionId'] })
+      phases.add(step.phase)
+    })
+    const entrySteps = path.steps.filter((step) => step.phase === Math.min(...phases))
+    const entryConnections = entrySteps.map((step) => connectionById.get(step.connectionId)).filter((item): item is Connection => Boolean(item))
+    const taskTrigger = entryConnections.flatMap((connection) => [connection.source, connection.target].filter((ref) => ref.kind === 'task').flatMap((ref) => value.tasks.find((task) => task.id === ref.id)?.trigger ? [value.tasks.find((task) => task.id === ref.id)!.trigger!] : []))
+    const connectionTrigger = entryConnections.flatMap((connection) => connection.cadence ? [connection.cadence] : [])
+    if (!path.trigger && taskTrigger.length === 0 && connectionTrigger.length === 0) context.addIssue({ code: 'custom', message: 'Path requires a trigger or a triggered entry connection', path: ['requestPaths', pathIndex, 'trigger'] })
+  })
   value.connections.forEach((connection, index) => {
     ;(['source', 'target'] as const).forEach((side) => {
       const ref = connection[side]
@@ -247,9 +281,10 @@ export const runtimeConfigSchema = z.object({
     if (screenTaskComponentConnection) {
       context.addIssue({ code: 'custom', message: 'Screen background tasks cannot connect directly to components', path: ['connections', index] })
     }
+    const inPath = pathSteps.has(connection.id)
     if (touchesTask && connection.cadence) {
       context.addIssue({ code: 'custom', message: 'Task-related connections inherit cadence when a task defines a trigger; they do not declare cadence', path: ['connections', index, 'cadence'] })
-    } else if (!touchesTask && !connection.cadence) {
+    } else if (!touchesTask && !connection.cadence && !inPath) {
       context.addIssue({ code: 'custom', message: 'Direct connections require cadence', path: ['connections', index, 'cadence'] })
     }
   })

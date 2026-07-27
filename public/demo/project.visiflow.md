@@ -219,6 +219,13 @@ systems:
     color: "#ec6b70"
     icon: SOS
     placement: left
+  - id: rider-bff
+    name: Rider experience BFF
+    type: Backend-for-frontend
+    description: Shapes rider requests and coordinates downstream marketplace, matching, and pricing services.
+    color: "#a891ff"
+    icon: BFF
+    placement: right
 scenarios:
   - id: normal
     name: Normal operation
@@ -265,6 +272,47 @@ componentFiles:
   - screens/trip-summary/receipt-card.visiflow.md
   - screens/safety-center/safety-card.visiflow.md
 connections:
+  - id: request-ride-bff
+    name: Submit ride request to BFF
+    source: { kind: component, id: ride-card }
+    target: { kind: system, id: rider-bff }
+    protocol: HTTPS
+    method: POST
+    endpoint: /v1/rides
+    description: Sends the selected vehicle and pickup context to the rider experience BFF.
+    cadence: { kind: user-event, label: On ride request }
+  - id: bff-transform-ride
+    name: Normalize ride request
+    source: { kind: system, id: rider-bff }
+    target: { kind: system, id: ride-marketplace }
+    protocol: GraphQL
+    method: POST
+    endpoint: /graphql
+    description: Transforms the client request into the marketplace query contract.
+  - id: bff-check-availability
+    name: Check driver availability
+    source: { kind: system, id: rider-bff }
+    target: { kind: system, id: risk-engine }
+    protocol: gRPC
+    method: Check
+    endpoint: matching.v1.Driver/Find
+    description: Fans out a matching check for the proposed ride.
+  - id: bff-aggregate-offers
+    name: Aggregate ride offers
+    source: { kind: system, id: risk-engine }
+    target: { kind: system, id: rider-bff }
+    protocol: gRPC
+    method: Result
+    endpoint: matching.v1.Driver/Find
+    description: Returns availability results for BFF aggregation.
+  - id: bff-return-offers
+    name: Return ride offers
+    source: { kind: system, id: rider-bff }
+    target: { kind: component, id: ride-card }
+    protocol: HTTPS
+    method: "200"
+    endpoint: /v1/rides
+    description: Returns a normalized set of ride offers to the selected card.
   - id: refresh-rider-session
     name: Refresh rider session
     source:
@@ -385,6 +433,17 @@ connections:
     method: GET
     endpoint: /v1/safety/cases/current
     description: Reads the latest status for an open rider safety case.
+requestPaths:
+  - id: request-ride-propagation
+    name: Request ride propagation
+    description: The rider BFF normalizes the request, fans out matching, aggregates availability, and responds with ride offers.
+    trigger: { kind: user-event, label: On ride request }
+    steps:
+      - { connectionId: request-ride-bff, phase: 1, behavior: forward, label: Submit selected ride }
+      - { connectionId: bff-transform-ride, phase: 2, behavior: transform, label: Normalize marketplace query }
+      - { connectionId: bff-check-availability, phase: 2, behavior: fan-out, label: Ask matching engine }
+      - { connectionId: bff-aggregate-offers, phase: 3, behavior: aggregate, label: Combine availability }
+      - { connectionId: bff-return-offers, phase: 4, behavior: respond, label: Return rider offers }
 textureLayers:
   - id: uber-overview
     name: Uber overview

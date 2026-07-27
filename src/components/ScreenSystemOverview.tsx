@@ -1,62 +1,55 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties, type ReactElement } from 'react'
 import type { Selection } from '../model'
-import { connectionCadences, connectionMatchesCadence, sameRef } from '../model'
-import type { Connection, VisiFlowConfig } from '../types'
+import { connectionCadences, connectionMatchesCadence, endpointName, requestPathCadence, sameRef } from '../model'
+import type { Connection, EndpointRef, RequestPath, VisiFlowConfig } from '../types'
 
-export function ScreenSystemOverview({ config, selection, protocols, cadence, onScreen, onSelect }: {
-  config: VisiFlowConfig
-  selection: Selection
-  protocols: string[]
-  cadence: string
-  onScreen: (screenId: string) => void
-  onSelect: (selection: Selection) => void
-}) {
-  const componentToScreen = new Map(config.components.map((component) => [component.id, component.screenId]))
-  const systems = new Map(config.systems.map((system) => [system.id, system]))
-  const componentFlagged = new Set(config.components.filter((component) => component.flagged).map((component) => component.id))
-  const taskFlagged = new Set(config.tasks.filter((task) => task.flagged).map((task) => task.id))
-  const connectionsForScreen = (screenId: string) => config.connections.filter((connection) => {
-    const componentRefs = [connection.source, connection.target].filter((ref) => ref.kind === 'component')
-    const systemRefs = [connection.source, connection.target].filter((ref) => ref.kind === 'system')
-    return componentRefs.some((ref) => componentToScreen.get(ref.id) === screenId) && systemRefs.length > 0 &&
-      (protocols.length === 0 || protocols.includes(connection.protocol)) && connectionMatchesCadence(config, connection, cadence)
+type PathView = RequestPath & { connections: Map<string, Connection> }
+
+export function ScreenSystemOverview({ config, selection, protocols, cadence, onScreen, onSelect }: { config: VisiFlowConfig; selection: Selection; protocols: string[]; cadence: string; onScreen: (screenId: string) => void; onSelect: (selection: Selection) => void }) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const connectionById = new Map(config.connections.map((connection) => [connection.id, connection]))
+  const visible = (connection: Connection) => (protocols.length === 0 || protocols.includes(connection.protocol)) && connectionMatchesCadence(config, connection, cadence)
+  const paths: PathView[] = config.requestPaths.map((path) => ({ ...path, connections: connectionById }))
+  const screenForEndpoint = (ref: EndpointRef) => {
+    if (ref.kind === 'component') return config.components.find((component) => component.id === ref.id)?.screenId
+    const task = ref.kind === 'task' ? config.tasks.find((item) => item.id === ref.id) : undefined
+    return task?.scope.kind === 'screen' ? task.scope.screenId : undefined
+  }
+  const systemsFor = (connections: Connection[]) => [...new Set(connections.flatMap((connection) => [connection.source, connection.target]).filter((ref) => ref.kind === 'system').map((ref) => ref.id))]
+  const systemButton = (id: string) => {
+    const system = config.systems.find((item) => item.id === id)
+    if (!system) return null
+    return <button key={id} className={`compact-system${sameRef(selection, { kind: 'system', id }) ? ' selected' : ''}`} style={{ '--system-color': system.color ?? '#7c8cff' } as CSSProperties} onClick={(event) => { event.stopPropagation(); onSelect({ kind: 'system', id }) }}><b>{system.icon ?? '◇'}</b><span><small>{system.type}</small><strong>{system.name}</strong></span></button>
+  }
+  const pathMaps = (screenId: string) => paths.filter((path) => path.steps.some((step) => { const connection = connectionById.get(step.connectionId); return connection && (screenForEndpoint(connection.source) === screenId || screenForEndpoint(connection.target) === screenId) })).map((path) => {
+    const steps = path.steps.map((step) => ({ step, connection: path.connections.get(step.connectionId) })).filter((item): item is { step: RequestPath['steps'][number]; connection: Connection } => item.connection !== undefined).filter((item) => visible(item.connection)).sort((a, b) => a.step.phase - b.step.phase)
+    const phases = [...new Set(steps.map((item) => item.step.phase))]
+    const endpoint = (ref: EndpointRef) => <button className={`path-endpoint ${ref.kind}${sameRef(selection, ref) ? ' selected' : ''}`} onClick={(event) => { event.stopPropagation(); onSelect(ref) }}><small>{ref.kind === 'system' ? 'System' : ref.kind === 'task' ? 'Task' : 'Component'}</small><strong>{endpointName(config, ref)}</strong></button>
+    return <article className="path-visual-map" key={path.id}><header><div><strong>{path.name}</strong><small>{path.description}</small></div><em>{requestPathCadence(config, path)?.label ?? 'Inherited trigger'}</em></header>{phases.map((phase) => <section className="path-hop-phase" key={phase}><b>Phase {phase}</b><div>{steps.filter((item) => item.step.phase === phase).map(({ step, connection }) => <article className={`path-hop ${step.behavior}`} key={connection.id}>{endpoint(connection.source)}<div className="path-hop-arrow"><span>{connection.source.kind === 'system' ? '←' : '→'}</span><strong>{step.label ?? connection.name}</strong><small>{connection.protocol}{connection.method ? ` · ${connection.method}` : ''}{connection.endpoint ? ` · ${connection.endpoint}` : ''}</small><em>{step.behavior}</em></div>{endpoint(connection.target)}</article>)}</div></section>)}</article>
   })
-  const systemFor = (connection: Connection) => [connection.source, connection.target].find((ref) => ref.kind === 'system')
-  const isFlagged = (connection: Connection) =>
-    (connection.source.kind === 'component' && componentFlagged.has(connection.source.id)) ||
-    (connection.target.kind === 'component' && componentFlagged.has(connection.target.id)) ||
-    (connection.source.kind === 'task' && taskFlagged.has(connection.source.id)) ||
-    (connection.target.kind === 'task' && taskFlagged.has(connection.target.id))
-
-  return <section className="screen-system-overview" aria-label="Screen and system overview" onClick={() => onSelect(null)}>
-    <header className="overview-intro"><div><span className="live-dot" />System overview</div><small>Screen structure and its external touchpoints</small></header>
-    <div className="overview-flow">
-      {config.screens.map((screen) => {
-        const connections = connectionsForScreen(screen.id)
-        return <article key={screen.id} className={`overview-row${screen.id === config.app.initialScreenId ? ' initial' : ''}`}>
-          <button className={`overview-screen${screen.id === config.app.initialScreenId ? ' selected' : ''}`} onClick={(event) => { event.stopPropagation(); onScreen(screen.id); onSelect(null) }}>
-            <span className="overview-screen-glyph" aria-hidden="true">&#9636;</span>
-            <span><small>{screen.group ?? 'Screen'}</small><strong>{screen.name}</strong><em>{screen.width} × {screen.height}</em></span>
-            {screen.id === config.app.initialScreenId && <i>START</i>}
-          </button>
-          <div className="overview-connectors">
-            {connections.length ? connections.map((connection) => {
-              const systemRef = systemFor(connection)
-              const system = systemRef && systems.get(systemRef.id)
-              if (!system || !systemRef) return null
-              const outgoing = connection.target.kind === 'system'
-              return <div className="overview-connection" key={connection.id}>
-                <span className="overview-line" aria-hidden="true" />
-                <span className="overview-protocol">{isFlagged(connection) && <i className="connection-warning" title="Flagged request">&#9888;</i>}{connection.method ? `${connection.method} · ` : ''}{connection.protocol}<small>{connectionCadences(config, connection).map((item) => item.label).join(' · ') || 'Task-managed flow'}</small></span>
-                <span className="overview-arrow" aria-label={outgoing ? 'Request to system' : 'Response from system'}>{outgoing ? '→' : '←'}</span>
-                <button className={`overview-system${sameRef(selection, systemRef) ? ' selected' : ''}`} style={{ '--system-color': system.color ?? '#7c8cff' } as CSSProperties} onClick={(event) => { event.stopPropagation(); onSelect({ kind: 'system', id: system.id }) }}>
-                  <b>{system.icon ?? '◇'}</b><span><small>{system.type}</small><strong>{system.name}</strong></span>
-                </button>
-              </div>
-            }) : <p className="overview-no-connection"><span />No external systems</p>}
-          </div>
-        </article>
-      })}
-    </div>
+  void pathMaps
+  const pathJourneys = (screenId: string) => paths.filter((path) => path.steps.some((step) => { const connection = connectionById.get(step.connectionId); return connection && (screenForEndpoint(connection.source) === screenId || screenForEndpoint(connection.target) === screenId) })).map((path) => {
+    const steps = path.steps.map((step) => ({ step, connection: path.connections.get(step.connectionId) })).filter((item): item is { step: RequestPath['steps'][number]; connection: Connection } => item.connection !== undefined).filter((item) => visible(item.connection)).sort((a, b) => a.step.phase - b.step.phase)
+    if (steps.length === 0) return null
+    const phases = [...new Set(steps.map((item) => item.step.phase))]
+    const uniqueRefs = (refs: EndpointRef[]) => refs.filter((ref, index) => refs.findIndex((candidate) => sameRef(candidate, ref)) === index)
+    const endpoint = (ref: EndpointRef) => <button className={`path-endpoint ${ref.kind}${sameRef(selection, ref) ? ' selected' : ''}`} onClick={(event) => { event.stopPropagation(); onSelect(ref) }}><small>{ref.kind === 'system' ? 'System' : ref.kind === 'task' ? 'Task' : 'Component'}</small><strong>{endpointName(config, ref)}</strong></button>
+    let current = uniqueRefs(steps.filter((item) => item.step.phase === phases[0]).map((item) => item.connection.source))
+    return <article className="path-journey" key={path.id}><header><div><strong>{path.name}</strong><small>{path.description}</small></div><em>{requestPathCadence(config, path)?.label ?? 'Inherited trigger'}</em></header><div className="path-journey-track"><section className="path-journey-stage"><small>Origin</small><div>{current.map(endpoint)}</div></section>{phases.map((phase) => { const phaseSteps = steps.filter((item) => item.step.phase === phase); current = uniqueRefs(phaseSteps.map((item) => item.connection.target)); return <><div className="path-journey-transition" key={`transition-${phase}`}><span>→</span>{phaseSteps.map(({ step, connection }) => <small className={step.behavior} key={connection.id}>{step.label ?? connection.name} · {connection.protocol}{connection.method ? ` ${connection.method}` : ''}</small>)}</div><section className="path-journey-stage" key={phase}><small>{phase === phases[phases.length - 1] ? 'Result' : `Phase ${phase}`}</small><div>{current.map(endpoint)}</div></section></>})}</div></article>
+  }).filter((path): path is ReactElement => path !== null)
+  const screenRequestMap = (connections: Connection[]) => connections.filter((connection) => connection.source.kind === 'system' || connection.target.kind === 'system').map((connection) => {
+    const inbound = connection.source.kind === 'system'; const component = inbound ? connection.target : connection.source; const system = inbound ? connection.source : connection.target
+    const cadenceLabel = connectionCadences(config, connection).map((item) => item.label).join(' · ')
+    return <article className="screen-request-map-row" key={connection.id}><button className="screen-request-component" onClick={(event) => { event.stopPropagation(); onSelect(component) }}><small>{component.kind === 'task' ? 'Task' : 'Component'}</small><strong>{endpointName(config, component)}</strong></button><div className={`screen-request-link${inbound ? ' inbound' : ''}`}><div><span>{inbound ? '←' : '→'}</span><strong>{connection.protocol}{connection.method ? ` · ${connection.method}` : ''}</strong><em>{cadenceLabel || 'On demand'}</em></div><small title={connection.description}>{connection.endpoint ?? connection.description}</small></div><button className="screen-request-system" onClick={(event) => { event.stopPropagation(); onSelect(system) }}><small>External system</small><strong>{endpointName(config, system)}</strong></button></article>
+  })
+  const globalConnections = config.connections.filter((connection) => visible(connection) && [connection.source, connection.target].some((ref) => ref.kind === 'task' && config.tasks.find((task) => task.id === ref.id)?.scope.kind === 'app'))
+  return <section className="screen-system-overview compact-overview" aria-label="System overview" onClick={() => onSelect(null)}>
+    <header className="overview-intro"><div><span className="live-dot" />System overview</div><small>Expand a screen to inspect its components, systems, and request propagation.</small></header>
+    <div className="compact-overview-list">{config.screens.map((screen) => {
+      const connections = config.connections.filter((connection) => visible(connection) && (screenForEndpoint(connection.source) === screen.id || screenForEndpoint(connection.target) === screen.id))
+      const systemIds = systemsFor(connections); const open = expanded === screen.id; const screenPaths = pathJourneys(screen.id)
+      return <article className={`compact-screen-row${open ? ' expanded' : ''}`} key={screen.id}><button className="compact-screen" onClick={(event) => { event.stopPropagation(); onScreen(screen.id); onSelect(null) }}><span>▤</span><span><small>{screen.group ?? 'Screen'}</small><strong>{screen.name}</strong></span><em>{connections.length} requests</em></button><div className="compact-systems">{systemIds.slice(0, 2).map(systemButton)}{systemIds.length > 2 && <span className="compact-more">+{systemIds.length - 2}</span>}{systemIds.length === 0 && <span className="compact-none">No external systems</span>}</div><button className="compact-expand" type="button" aria-expanded={open} aria-label={`${open ? 'Collapse' : 'Expand'} ${screen.name} systems`} onClick={(event) => { event.stopPropagation(); setExpanded((current) => current === screen.id ? null : screen.id) }}>{open ? '−' : '+'}</button>{open && <div className="compact-screen-detail compact-screen-map"><section className="screen-request-map"><header><strong>Screen request map</strong><span>{connections.length} connections</span></header>{screenRequestMap(connections).length ? screenRequestMap(connections) : <p>No direct external requests on this screen.</p>}</section><section className="compact-paths-panel"><header><strong>Propagated paths</strong></header>{screenPaths.length ? screenPaths : <p>No named request paths begin or end on this screen.</p>}</section></div>}</article>
+    })}</div>
+    {globalConnections.length > 0 && <article className={`compact-global-row${expanded === '__global__' ? ' expanded' : ''}`}><button className="compact-screen" onClick={(event) => { event.stopPropagation(); onSelect(null) }}><span>↻</span><span><small>App runtime</small><strong>Global tasks</strong></span><em>{globalConnections.length} requests</em></button><div className="compact-systems">{systemsFor(globalConnections).slice(0, 2).map(systemButton)}</div><button className="compact-expand" type="button" aria-expanded={expanded === '__global__'} aria-label="Expand global task systems" onClick={(event) => { event.stopPropagation(); setExpanded((current) => current === '__global__' ? null : '__global__') }}>{expanded === '__global__' ? '−' : '+'}</button>{expanded === '__global__' && <div className="compact-screen-detail compact-screen-map"><section className="screen-request-map"><header><strong>Global request map</strong><span>{globalConnections.length} connections</span></header>{screenRequestMap(globalConnections)}</section></div>}</article>}
   </section>
 }

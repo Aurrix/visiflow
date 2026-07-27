@@ -6,6 +6,7 @@ import {
   componentStateSchema,
   componentVisualSchema,
   connectionSchema,
+  requestPathSchema,
   endpointSchema,
   idSchema,
   parseConfig,
@@ -41,6 +42,7 @@ export const projectManifestSchema = z.object({
   initialScenarioId: idSchema.optional(),
   componentFiles: z.array(safeProjectPath),
   connections: z.array(connectionSchema).default([]),
+  requestPaths: z.array(requestPathSchema).default([]),
 })
 
 export const componentCallSchema = z.object({
@@ -148,6 +150,7 @@ export function assembleProject(
     tasks: manifest.tasks,
     systems: manifest.systems,
     connections: [...manifest.connections, ...ownedConnections],
+    requestPaths: manifest.requestPaths ?? [],
     scenarios: manifest.scenarios,
     initialScenarioId: manifest.initialScenarioId,
   }

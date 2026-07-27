@@ -14,14 +14,20 @@ interface DetailPanelProps {
   config: VisiFlowConfig
   scenario: Scenario
   selection: Selection
+  collapsed: boolean
+  onToggleCollapsed: () => void
   onClose: () => void
   onToggleFlag?: (selection: Exclude<Selection, null>, flagged: boolean) => void
 }
 
-export function DetailPanel({ config, scenario, selection, onClose, onToggleFlag }: DetailPanelProps) {
+export function DetailPanel({ config, scenario, selection, collapsed, onToggleCollapsed, onClose, onToggleFlag }: DetailPanelProps) {
+  if (collapsed) {
+    return <aside className="detail-panel detail-collapsed-rail" aria-label="Selection details"><button type="button" onClick={onToggleCollapsed} aria-label="Expand details panel" title="Expand details panel">‹</button></aside>
+  }
   if (!selection) {
     return (
       <aside className="detail-panel detail-empty" aria-label="Selection details">
+        <button className="detail-collapse" type="button" onClick={onToggleCollapsed} aria-label="Collapse details panel" title="Collapse details panel">›</button>
         <section className="app-context-summary" aria-label="Application context">
           <span className="app-avatar">{config.app.name.slice(0, 1)}</span>
           <p className="eyebrow">{config.app.device} application · {config.app.platform}</p>
@@ -57,6 +63,7 @@ export function DetailPanel({ config, scenario, selection, onClose, onToggleFlag
 
   return (
     <aside className="detail-panel" aria-label={`${item.name} details`}>
+      <button className="detail-collapse" type="button" onClick={onToggleCollapsed} aria-label="Collapse details panel" title="Collapse details panel">›</button>
       <button className="icon-button panel-close" onClick={onClose} aria-label="Close details">×</button>
       <p className="eyebrow">{selection.kind === 'component'
         ? item.type

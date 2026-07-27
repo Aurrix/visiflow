@@ -139,6 +139,23 @@ export interface Connection {
   cadence?: Cadence
 }
 
+export type PathHopBehavior = 'forward' | 'transform' | 'fan-out' | 'aggregate' | 'respond'
+
+export interface RequestPathStep {
+  connectionId: string
+  phase: number
+  behavior: PathHopBehavior
+  label?: string
+}
+
+export interface RequestPath {
+  id: string
+  name: string
+  description: string
+  trigger?: Cadence
+  steps: RequestPathStep[]
+}
+
 export interface Scenario {
   id: string
   name: string
@@ -166,6 +183,7 @@ export interface VisiFlowConfig {
   tasks: BackgroundTask[]
   systems: ExternalSystem[]
   connections: Connection[]
+  requestPaths: RequestPath[]
   scenarios: Scenario[]
   initialScenarioId?: string
 }
@@ -196,6 +214,7 @@ export interface ProjectManifestMeta {
   initialScenarioId?: string
   componentFiles: string[]
   connections: Connection[]
+  requestPaths?: RequestPath[]
 }
 
 export interface ComponentDocumentMeta {

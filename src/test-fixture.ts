@@ -15,6 +15,7 @@ export const testConfig: VisiFlowConfig = {
     id: 'pay', name: 'Create payment', source: { kind: 'component', id: 'button' }, target: { kind: 'system', id: 'api' },
     protocol: 'HTTPS', method: 'POST', endpoint: '/payments', description: 'Creates payment', cadence: { kind: 'user-event', label: 'On click' },
   }],
+  requestPaths: [],
   scenarios: [
     { id: 'normal', name: 'Normal', componentStates: {}, taskStates: {} },
     { id: 'offline', name: 'Offline', componentStates: { button: 'inactive' }, taskStates: {} },

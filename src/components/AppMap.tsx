@@ -6,6 +6,7 @@ import type { AppComponent, AppScreen, BackgroundTask, Connection, Scenario, Vis
 import { resolveAssetSource } from '../assets'
 import { resolveComponentLayout, type ComponentPosition } from '../layout'
 import { ScreenSystemOverview } from './ScreenSystemOverview'
+import { AppSystemOverview } from './AppSystemOverview'
 
 interface AppMapProps {
   config: VisiFlowConfig
@@ -104,7 +105,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
   const [stageExtent, setStageExtent] = useState({ width: 0, height: 0 })
   const [fittedWidth, setFittedWidth] = useState(292)
   const [zoom, setZoom] = useState(1)
-  const [mapMode, setMapMode] = useState<'preview' | 'overview'>('preview')
+  const [mapMode, setMapMode] = useState<'preview' | 'overview' | 'systems'>('preview')
   const [representationOpen, setRepresentationOpen] = useState(false)
   const [forcedRepresentation, setForcedRepresentation] = useState<'phone' | 'web' | 'desktop' | 'diagram' | null>(null)
   const screen = config.screens.find((item) => item.id === screenId) ?? config.screens[0]
@@ -293,6 +294,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
   const canvasControls = <div className={`map-floating-controls${representationOpen ? ' expanded' : ''}`} aria-label="Canvas controls" onClick={(event) => event.stopPropagation()}>
     <button className={mapMode === 'preview' ? 'active' : ''} type="button" aria-label="Show screen preview" title="Screen preview" onClick={() => setMapMode('preview')}>▣</button>
     <button className={mapMode === 'overview' ? 'active' : ''} type="button" aria-label="Show system overview" title="System overview" onClick={() => setMapMode('overview')}>⌘</button>
+    <button className={mapMode === 'systems' ? 'active' : ''} type="button" aria-label="Show app and systems overview" title="App and systems overview" onClick={() => setMapMode('systems')}>◉</button>
     <button className={forcedRepresentation ? 'active' : ''} type="button" aria-expanded={representationOpen} aria-label="Choose preview representation" title="Choose preview representation" onClick={() => setRepresentationOpen((open) => !open)}>◫</button>
     {representationOpen && <div className="representation-options" aria-label="Preview representation">
       {([{ id: 'phone', icon: '▯', label: 'Phone' }, { id: 'web', icon: '⌁', label: 'Web' }, { id: 'desktop', icon: '▣', label: 'Desktop' }, { id: 'diagram', icon: '⌘', label: 'Diagram' }] as const).map((item) => <button className={representation === item.id ? 'active' : ''} type="button" key={item.id} title={`Force ${item.label} representation`} aria-label={`Force ${item.label} representation`} onClick={() => { setForcedRepresentation(item.id); setRepresentationOpen(false) }}>{item.icon}</button>)}
@@ -303,7 +305,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
   return (
     <section className="map-workspace" aria-label="Application map">
       <div className="map-toolbar">
-        <div className="map-title"><button className="map-filter-trigger" type="button" aria-expanded={filtersOpen} aria-label={filtersOpen ? 'Close map controls' : 'Open map controls'} title={filtersOpen ? 'Close map controls' : 'Open map controls'} onClick={onToggleFilters}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" /></svg>{hasActiveFilters && <i />}</button><span className="live-dot" />Architecture map <span className="muted">· {visibleConnections.length} visible paths</span></div>
+        <div className="map-title"><button className="map-filter-trigger" type="button" aria-expanded={filtersOpen} aria-label={filtersOpen ? 'Collapse view filters' : 'Expand view filters'} title={filtersOpen ? 'Collapse view filters' : 'Expand view filters'} onClick={onToggleFilters}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" /></svg>{hasActiveFilters && <i />}</button><span className="live-dot" />Architecture map <span className="muted">· {visibleConnections.length} visible paths</span></div>
           <div className="map-toolbar-actions">
           {mapMode === 'preview' && <>
           <label className="map-search">
@@ -319,7 +321,7 @@ export function AppMap({ config, screenId, scenario, selection, protocols, caden
           </>}
           </div>
         </div>
-      {mapMode === 'overview' ? <div className="flow-stage overview-stage">{canvasControls}<ScreenSystemOverview config={config} selection={selection} protocols={protocols} cadence={cadence} onScreen={onScreen} onSelect={onSelect} /></div> : <>
+      {mapMode === 'overview' ? <div className="flow-stage overview-stage">{canvasControls}<ScreenSystemOverview config={config} selection={selection} protocols={protocols} cadence={cadence} onScreen={onScreen} onSelect={onSelect} /></div> : mapMode === 'systems' ? <div className="flow-stage overview-stage">{canvasControls}<AppSystemOverview config={config} selection={selection} protocols={protocols} cadence={cadence} onSelect={onSelect} /></div> : <>
       <div className={`flow-stage${applicableTasks.length ? ' has-runtime' : ''}`} ref={stageRef} onScroll={measure} onClick={() => onSelect(null)}>
         <svg className="flow-lines" aria-hidden="true" style={{ width: stageExtent.width, height: stageExtent.height }}>
           <defs>

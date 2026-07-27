@@ -899,6 +899,105 @@
         "additionalProperties": false
       }
     },
+    "requestPaths": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "user-event",
+                  "lifecycle",
+                  "scheduled",
+                  "recurring",
+                  "polling",
+                  "push",
+                  "continuous",
+                  "custom"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "intervalMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "cron": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "steps": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "connectionId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "phase": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "behavior": {
+                  "type": "string",
+                  "enum": [
+                    "forward",
+                    "transform",
+                    "fan-out",
+                    "aggregate",
+                    "respond"
+                  ]
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "connectionId",
+                "phase",
+                "behavior"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "steps"
+        ],
+        "additionalProperties": false
+      }
+    },
     "scenarios": {
       "minItems": 1,
       "type": "array",
@@ -970,6 +1069,7 @@
     "tasks",
     "systems",
     "connections",
+    "requestPaths",
     "scenarios"
   ],
   "additionalProperties": false

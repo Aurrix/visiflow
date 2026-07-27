@@ -156,6 +156,24 @@ describe('parseConfig', () => {
     }
   })
 
+  it('accepts propagated paths and lets downstream hops inherit their path trigger', () => {
+    const valid = structuredClone(testConfig)
+    valid.systems.push({ id: 'bff', name: 'BFF', type: 'Gateway', description: 'Transforms requests.' })
+    valid.connections[0].target = { kind: 'system', id: 'bff' }
+    valid.connections.push({ id: 'forward', name: 'Forward payment', source: { kind: 'system', id: 'bff' }, target: { kind: 'system', id: 'api' }, protocol: 'HTTPS', description: 'Forwards to payment.' })
+    valid.requestPaths.push({ id: 'payment-path', name: 'Payment propagation', description: 'Passes through the BFF.', trigger: { kind: 'user-event', label: 'On payment' }, steps: [
+      { connectionId: 'pay', phase: 1, behavior: 'forward' },
+      { connectionId: 'forward', phase: 2, behavior: 'transform', label: 'Normalize payment' },
+    ] })
+    expect(parseConfig(valid).ok).toBe(true)
+
+    const invalid = structuredClone(valid)
+    invalid.requestPaths[0].steps[1].connectionId = 'missing'
+    const result = parseConfig(invalid)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.errors.join('\n')).toContain('Unknown connection')
+  })
+
   it('validates project texture layers and component crop bindings', () => {
     const input = structuredClone(testConfig)
     input.textureLayers = [{ id: 'reference', name: 'Reference', src: inlinePng, x: 0, y: 0, width: 100, height: 100, order: 0 }]

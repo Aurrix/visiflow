@@ -21,12 +21,13 @@ import type {
   EndpointRef,
   ExternalSystem,
   ProjectWorkspace,
+  RequestPath,
   Scenario,
   VisiFlowConfig,
   VisualKind,
 } from './types'
 
-export type EditorEntityKind = 'app' | 'screen' | 'component' | 'task' | 'system' | 'connection' | 'scenario'
+export type EditorEntityKind = 'app' | 'screen' | 'component' | 'task' | 'system' | 'connection' | 'requestPath' | 'scenario'
 export type EditorSelection = { kind: EditorEntityKind; id?: string }
 type EntityKind = EditorEntityKind
 type Selection = EditorSelection
@@ -267,6 +268,7 @@ export function DiskConfigEditor({
     if (kind === 'connection' && !config.components.length && !config.tasks.length && !config.systems.length) {
       return
     }
+    if (kind === 'requestPath' && !config.connections.length) return
     let createdId = ''
     commit((draft) => {
       if (kind === 'screen') {
@@ -304,6 +306,10 @@ export function DiskConfigEditor({
           description: '',
           ...(touchesTask ? {} : { cadence: { kind: 'user-event' as const, label: 'On user action' } }),
         })
+      } else if (kind === 'requestPath') {
+        createdId = uniqueId('new-request-path', draft.requestPaths.map((item) => item.id))
+        const connection = draft.connections[0]
+        draft.requestPaths.push({ id: createdId, name: 'New request path', description: '', trigger: { kind: 'user-event', label: 'On user action' }, steps: connection ? [{ connectionId: connection.id, phase: 1, behavior: 'forward' }] : [] })
       } else {
         createdId = uniqueId('new-scenario', draft.scenarios.map((item) => item.id))
         draft.scenarios.push({ id: createdId, name: 'New scenario', screenId, componentStates: {}, taskStates: {} })
@@ -493,7 +499,11 @@ export function DiskConfigEditor({
       } else if (selection.kind === 'system') {
         draft.systems = draft.systems.filter((item) => item.id !== id)
         draft.connections = draft.connections.filter((item) => !affectedConnections.some((connection) => connection.id === item.id))
-      } else if (selection.kind === 'connection') draft.connections = draft.connections.filter((item) => item.id !== id)
+      } else if (selection.kind === 'connection') {
+        draft.connections = draft.connections.filter((item) => item.id !== id)
+        draft.requestPaths.forEach((path) => { path.steps = path.steps.filter((step) => step.connectionId !== id) })
+        draft.requestPaths = draft.requestPaths.filter((path) => path.steps.length > 0)
+      } else if (selection.kind === 'requestPath') draft.requestPaths = draft.requestPaths.filter((item) => item.id !== id)
       else {
         draft.scenarios = draft.scenarios.filter((item) => item.id !== id)
         if (draft.initialScenarioId === id) draft.initialScenarioId = draft.scenarios[0].id
@@ -511,6 +521,7 @@ export function DiskConfigEditor({
     { kind: 'task', label: 'Tasks', items: config.tasks },
     { kind: 'system', label: 'Systems', items: config.systems },
     { kind: 'connection', label: 'Connections', items: config.connections },
+    { kind: 'requestPath', label: 'Request paths', items: config.requestPaths },
     { kind: 'scenario', label: 'Scenarios', items: config.scenarios },
   ]
 
@@ -883,6 +894,21 @@ function Inspector({ config, selection, screen, commit, rename, onDelete, onDupl
         <Field label="Cron"><input value={item.cadence.cron ?? ''} onChange={(event) => update((value) => { if (value.cadence) value.cadence.cron = event.target.value || undefined })} /></Field>
       </> : <div className="editor-note wide">Cadence is inherited from the connected task trigger.</div>}
       <Field label="Description" wide><textarea value={item.description} onChange={(event) => update((value) => { value.description = event.target.value })} /></Field>
+    </div>
+  }
+
+  if (selection.kind === 'requestPath') {
+    const item = config.requestPaths.find((value) => value.id === selection.id)
+    if (!item) return null
+    const update = (mutate: (path: RequestPath) => void) => commit((draft) => mutate(draft.requestPaths.find((value) => value.id === item.id)!))
+    return <div className="inspector-form">
+      {header('Request path', item.name)}
+      <Field label="Name" wide><input value={item.name} onChange={(event) => update((value) => { value.name = event.target.value })} /></Field>
+      <Field label="ID" wide><input value={item.id} onChange={(event) => update((value) => { value.id = event.target.value })} /></Field>
+      <Field label="Trigger kind"><select value={item.trigger?.kind ?? 'user-event'} onChange={(event) => update((value) => { value.trigger ??= { kind: 'user-event', label: 'On user action' }; value.trigger.kind = event.target.value as CadenceKind })}>{cadenceKinds.map((value) => <option key={value}>{value}</option>)}</select></Field>
+      <Field label="Trigger label"><input value={item.trigger?.label ?? ''} onChange={(event) => update((value) => { value.trigger ??= { kind: 'user-event', label: '' }; value.trigger.label = event.target.value })} /></Field>
+      <Field label="Description" wide><textarea value={item.description} onChange={(event) => update((value) => { value.description = event.target.value })} /></Field>
+      <div className="scenario-states wide"><strong>Ordered hops</strong>{item.steps.map((step, index) => <label key={`${step.connectionId}-${index}`}><span>{index + 1}</span><select value={step.connectionId} onChange={(event) => update((value) => { value.steps[index].connectionId = event.target.value })}>{config.connections.map((connection) => <option key={connection.id} value={connection.id}>{connection.name}</option>)}</select><input type="number" min="1" value={step.phase} onChange={(event) => update((value) => { value.steps[index].phase = number(event.target.value, 1) })} /><select value={step.behavior} onChange={(event) => update((value) => { value.steps[index].behavior = event.target.value as RequestPath['steps'][number]['behavior'] })}>{['forward', 'transform', 'fan-out', 'aggregate', 'respond'].map((behavior) => <option key={behavior}>{behavior}</option>)}</select><input value={step.label ?? ''} placeholder="Optional label" onChange={(event) => update((value) => { value.steps[index].label = event.target.value || undefined })} /><button type="button" onClick={() => update((value) => { value.steps.splice(index, 1) })}>−</button></label>)}<button type="button" className="secondary-button" onClick={() => update((value) => { const connection = config.connections.find((candidate) => !value.steps.some((step) => step.connectionId === candidate.id)); if (connection) value.steps.push({ connectionId: connection.id, phase: Math.max(0, ...value.steps.map((step) => step.phase)) + 1, behavior: 'forward' }) })}>Add hop</button></div>
     </div>
   }
 

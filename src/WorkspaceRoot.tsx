@@ -12,6 +12,7 @@ import {
 import { forgetRecentProject, recentProjects, rememberRecentProject, type RecentProject } from './recent-projects'
 import { saveProjectWorkspace } from './project-workspace'
 import { downloadDrawio } from './drawio-export'
+import { downloadMarkdownTable } from './markdown-export'
 import type { EndpointRef, LoadedProject, ProjectWorkspace, VisiFlowConfig } from './types'
 
 type ProjectMode = 'view' | 'edit'
@@ -104,6 +105,7 @@ export function WorkspaceRoot() {
   const [savedRevision, setSavedRevision] = useState(0)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: 'idle', message: '' })
   const [saveSignal, setSaveSignal] = useState(0)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [recent, setRecent] = useState<RecentProject[]>([])
 
   const sessionRef = useRef(session)
@@ -423,7 +425,7 @@ export function WorkspaceRoot() {
   }
 
   const controls = <div className="workspace-controls" aria-label="Project controls">
-    <button type="button" className="secondary-button export-drawio" onClick={() => downloadDrawio(config)} aria-label="Export Draw.io" title="Export Draw.io"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11" /><path d="m8 10 4 4 4-4" /><path d="M5 16v4h14v-4" /></svg></button>
+    <div className="export-menu"><button type="button" className="secondary-button export-drawio" onClick={() => setExportMenuOpen((open) => !open)} aria-label="Export project" aria-expanded={exportMenuOpen} title="Export project"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11" /><path d="m8 10 4 4 4-4" /><path d="M5 16v4h14v-4" /></svg></button>{exportMenuOpen && <div className="export-menu-popover" role="menu"><button type="button" role="menuitem" onClick={() => { downloadDrawio(config); setExportMenuOpen(false) }}><strong>Draw.io diagram</strong><small>Editable architecture pages</small></button><button type="button" role="menuitem" onClick={() => { downloadMarkdownTable(config); setExportMenuOpen(false) }}><strong>Markdown table</strong><small>Screens, items, systems, and calls</small></button></div>}</div>
     <button type="button" className="secondary-button open-folder" onClick={() => void openFolder()}>Open</button>
     <div className="mode-controls">
     <div className="mode-switch" aria-label="Workspace mode">

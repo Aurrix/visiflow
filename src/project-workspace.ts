@@ -105,6 +105,7 @@ export function synchronizeWorkspace(workspace: ProjectWorkspace, config: VisiFl
     initialScenarioId: config.initialScenarioId,
     componentFiles: [],
     connections: [],
+    requestPaths: structuredClone(config.requestPaths),
   }
 
   const currentIds = new Set(config.components.map((component) => component.id))
